@@ -9,7 +9,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
 # Load Environment Variables (.env file containing GROQ_API_KEY)
-load_dotenv()
+dotenv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+load_dotenv(dotenv_path)
 
 class InternshipMatcher:
     def __init__(self, vectorstore_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "vector_store", "internships_faiss_index")):

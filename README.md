@@ -1,42 +1,58 @@
-# Internship Matching RAG System
+# Full-Stack Internship Matching RAG System
 
-This project is a Retrieval-Augmented Generation (RAG) pipeline that takes a candidate's resume data and retrieves the most relevant internships from an Internship Vector Database based on semantic similarity. It uses FAISS for vector storage and Groq's LLaMA 3 model to provide qualitative matching rationale.
+This project is a Retrieval-Augmented Generation (RAG) pipeline that takes a candidate's resume data and retrieves the most relevant internships from an Internship Vector Database based on semantic similarity. It has been built as a modern Full-Stack web application.
+
+## Architecture & Tech Stack
+
+- **Frontend:** Next.js (React), Tailwind CSS. Provides a UI for user registration, resume PDF uploading, and visualizing RAG match results.
+- **Backend:** FastAPI (Python). Handles authentication, PDF parsing, and exposing the RAG pipeline as REST APIs.
+- **Database:** PostgreSQL (SQLAlchemy). Stores user credentials securely (bcrypt) and keeps a record of uploaded resumes and extracted JSON data.
+- **Vector Store:** FAISS CPU. Stores embeddings of the internship opportunities generated via `sentence-transformers/all-MiniLM-L6-v2`.
+- **LLM/RAG:** LangChain & Groq. Evaluates the retrieved FAISS context and provides reasoning on candidate fit. Also used for extracting structured JSON from raw PDF resumes.
 
 ## Project Structure
 
-- `data_prep/`: Contains the JSON datasets for internships (`internship_data.json`) and synthetic candidate profiles (`resumes.json`).
-- `vector_store/`: Contains `indexer.py` which reads the internship data, creates embeddings using `sentence-transformers/all-MiniLM-L6-v2`, and saves the vector store.
-- `matching_engine.py`: The core semantic matching and RAG prompt logic. Sets up the FAISS retriever and LCEL chain with Groq.
-- `tests/`: Contains `run_tests.py` which runs 10 test profiles through the RAG matching engine.
-- `requirements.txt`: Python dependencies.
+- `backend/data_prep/`: Contains the JSON datasets for internships (`internship_data.json`) and synthetic candidate profiles (`resumes.json`).
+- `backend/vector_store/`: Contains `indexer.py` which reads the internship data, creates embeddings, and saves the vector store.
+- `backend/matching_engine.py`: The core semantic matching and RAG prompt logic. 
+- `backend/main.py`: FastAPI server handling routes and database sessions.
+- `backend/tests/run_tests.py`: Batch test suite matching 10 distinct synthetic candidates representing various archetypes (Skill-based, Education-based, AI/ML, etc.) as requested by the assignment.
+- `frontend/`: Next.js web application.
 
 ## Setup Instructions
 
-1. **Install Requirements:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 1. Database Setup
+Ensure PostgreSQL is running locally. Create a database named `internship_db`.
 
-2. **Environment Variables:**
-   Create a `.env` file in the root directory and add your Groq API Key:
-   ```env
-   GROQ_API_KEY=your_api_key_here
-   ```
+### 2. Backend Setup
+Create a `.env` file in the `backend/` directory and add your Groq API Key:
+```env
+GROQ_API_KEY=your_api_key_here
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/internship_db
+```
+Install dependencies and build the vector database:
+```bash
+cd backend
+pip install -r requirements.txt
+python vector_store/indexer.py
+```
+Start the API Server:
+```bash
+uvicorn main:app --reload
+```
 
-3. **Build the Vector Store:**
-   ```bash
-   cd vector_store
-   python indexer.py
-   cd ..
-   ```
+### 3. Frontend Setup
+In a separate terminal, navigate to the frontend directory:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Navigate to `http://localhost:3000` to register, upload a resume, and test the RAG matching engine.
 
-4. **Run Tests:**
-   Execute the batch test matching 10 different candidates against the internship dataset:
-   ```bash
-   python tests/run_tests.py
-   ```
-
-## Design Choices
-- **Embeddings:** Used HuggingFace's `all-MiniLM-L6-v2` because it's lightweight, fast, and sufficient for semantic text similarity.
-- **Vector DB:** Used FAISS CPU as it's locally executable and avoids complicated containerized setups for this milestone.
-- **LLM/RAG:** Used LangChain and Groq's Llama 3 70B for the final evaluation step, allowing for strong reasoning about *why* the candidate is a match based strictly on retrieved context.
+## Testing (Assignment Requirement)
+To verify the system against the 5-10 distinct candidate archetypes specified in the assignment without using the UI, you can run the batch test script:
+```bash
+cd backend
+python tests/run_tests.py
+```

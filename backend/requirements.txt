@@ -8,3 +8,12 @@ pydantic
 sentence-transformers
 python-dotenv
 pandas
+
+fastapi
+uvicorn
+psycopg2-binary
+sqlalchemy
+python-multipart
+pymupdf
+passlib
+bcrypt

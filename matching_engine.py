@@ -12,7 +12,7 @@ from langchain_core.runnables import RunnablePassthrough
 load_dotenv()
 
 class InternshipMatcher:
-    def __init__(self, vectorstore_path="vector_store/internships_faiss_index"):
+    def __init__(self, vectorstore_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "vector_store", "internships_faiss_index")):
         self.embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         
         # Load Vector Store
@@ -33,7 +33,7 @@ class InternshipMatcher:
             print("WARNING: GROQ_API_KEY is not set. The matching engine will fail when invoking LLM.")
             
         self.llm = ChatGroq(
-            model="llama-3.3-70b-versatile",
+            model="qwen/qwen3.6-27b",
             temperature=0.2, # Low temperature for factual, grounded matching
             max_tokens=512,
         )

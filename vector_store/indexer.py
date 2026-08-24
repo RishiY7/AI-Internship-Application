@@ -6,7 +6,8 @@ from langchain_core.documents import Document
 
 def build_vector_store():
     # 1. Load data
-    data_path = os.path.join("..", "data_prep", "internship_data.json")
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    data_path = os.path.join(base_dir, "data_prep", "internship_data.json")
     with open(data_path, "r") as f:
         internships_data = json.load(f)
 
@@ -35,7 +36,7 @@ def build_vector_store():
     print("Building FAISS index...")
     vectorstore = FAISS.from_documents(docs, embedding_model)
     
-    save_path = "internships_faiss_index"
+    save_path = os.path.join(base_dir, "vector_store", "internships_faiss_index")
     vectorstore.save_local(save_path)
     print(f"Vector database built and saved to {save_path}!")
 

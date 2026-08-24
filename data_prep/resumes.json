@@ -1,0 +1,82 @@
+[
+  {
+    "id": 1,
+    "name": "Alice Sharma",
+    "skills": ["Python", "FastAPI", "SQL", "Git"],
+    "education": "B.Tech in Computer Science, 2024",
+    "experience": "Built a REST API for a college management system using FastAPI and PostgreSQL.",
+    "projects": "College Management API, Todo App in Python"
+  },
+  {
+    "id": 2,
+    "name": "Bob Verma",
+    "skills": ["Python", "Pandas", "Scikit-Learn", "Matplotlib"],
+    "education": "B.Tech in Data Science, 2025",
+    "experience": "Participated in Kaggle competitions, built a house price prediction model.",
+    "projects": "House Price Prediction, Customer Segmentation"
+  },
+  {
+    "id": 3,
+    "name": "Charlie Gupta",
+    "skills": ["Python", "PyTorch", "NLP", "TensorFlow"],
+    "education": "M.Tech in AI, 2024",
+    "experience": "Research assistant for an NLP lab. Published a paper on sentiment analysis.",
+    "projects": "Sentiment Analysis Tool, Image Classification with CNNs"
+  },
+  {
+    "id": 4,
+    "name": "Diana Patel",
+    "skills": ["Python", "LangChain", "HuggingFace", "OpenAI API"],
+    "education": "B.Tech in CS, 2024",
+    "experience": "Developed a custom chatbot for the university website using LangChain and OpenAI.",
+    "projects": "University Chatbot, Resume Parser LLM"
+  },
+  {
+    "id": 5,
+    "name": "Evan Thomas",
+    "skills": ["JavaScript", "React.js", "Tailwind CSS", "HTML5"],
+    "education": "BCA, 2025",
+    "experience": "Freelance web development for local businesses.",
+    "projects": "E-commerce UI, Portfolio Website"
+  },
+  {
+    "id": 6,
+    "name": "Fiona Desai",
+    "skills": ["JavaScript", "React", "Node.js", "MongoDB"],
+    "education": "B.Tech in CS, 2023",
+    "experience": "6 months internship as a backend developer, self-taught React.",
+    "projects": "Full-stack Blog Platform, Chat Application"
+  },
+  {
+    "id": 7,
+    "name": "Gaurav Singh",
+    "skills": ["Linux", "Docker", "Bash", "AWS"],
+    "education": "B.Tech in IT, 2024",
+    "experience": "Maintained department servers and automated backups using Bash.",
+    "projects": "Automated Deployment Script, Home Lab Server Setup"
+  },
+  {
+    "id": 8,
+    "name": "Hina Khan",
+    "skills": ["Python", "SQL", "Apache Spark", "Airflow"],
+    "education": "B.Tech in CS, 2024",
+    "experience": "Completed a data engineering bootcamp. Handled 10GB datasets.",
+    "projects": "ETL Pipeline for Weather Data, Spark Streaming Analytics"
+  },
+  {
+    "id": 9,
+    "name": "Ishaan Reddy",
+    "skills": ["Python", "C++", "Networking", "Burp Suite"],
+    "education": "B.Tech in Cyber Security, 2025",
+    "experience": "Active on HackTheBox and TryHackMe. Discovered a vulnerability in a college app.",
+    "projects": "Custom Port Scanner, Network Traffic Analyzer"
+  },
+  {
+    "id": 10,
+    "name": "Jaya Kumar",
+    "skills": ["Flutter", "Dart", "Firebase"],
+    "education": "B.Tech in CS, 2025",
+    "experience": "Built a habit-tracking app currently on the Play Store.",
+    "projects": "Habit Tracker App, Weather App in Flutter"
+  }
+]

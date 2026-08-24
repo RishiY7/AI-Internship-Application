@@ -1,0 +1,102 @@
+[
+  {
+    "title": "Backend Python Intern",
+    "company": "TechCorp",
+    "description": "Looking for an intern to build REST APIs using FastAPI and Python. Must know SQL.",
+    "skills": "Python, FastAPI, SQL",
+    "education": "B.Tech in CS or related field",
+    "experience": "0-1 year",
+    "location": "Remote",
+    "duration": "6 months"
+  },
+  {
+    "title": "Data Science Intern",
+    "company": "DataWorks",
+    "description": "Assist in building machine learning models using Scikit-Learn and Pandas.",
+    "skills": "Python, Pandas, Machine Learning, Scikit-Learn",
+    "education": "B.Tech/M.Tech in CS/Data Science",
+    "experience": "0-1 year",
+    "location": "Hybrid - Bangalore",
+    "duration": "3 months"
+  },
+  {
+    "title": "AI/ML Intern",
+    "company": "AI Innovators",
+    "description": "Work on computer vision and NLP models. PyTorch experience is highly preferred.",
+    "skills": "Python, PyTorch, Deep Learning, NLP, CV",
+    "education": "M.Tech or PhD preferred",
+    "experience": "Academic projects in Deep Learning",
+    "location": "On-site - Hyderabad",
+    "duration": "6 months"
+  },
+  {
+    "title": "Generative AI Intern",
+    "company": "FutureTech",
+    "description": "Develop and fine-tune LLMs for various internal applications using LangChain and HuggingFace.",
+    "skills": "Python, LLMs, LangChain, HuggingFace, Prompt Engineering",
+    "education": "B.Tech in CS",
+    "experience": "Experience with LLM APIs and RAG",
+    "location": "Remote",
+    "duration": "4 months"
+  },
+  {
+    "title": "Frontend React Intern",
+    "company": "WebMakers",
+    "description": "Build responsive web applications using React.js and Tailwind CSS.",
+    "skills": "JavaScript, React.js, HTML, CSS, Tailwind",
+    "education": "BCA/B.Tech",
+    "experience": "Personal projects in React",
+    "location": "Remote",
+    "duration": "3 months"
+  },
+  {
+    "title": "Full Stack Developer Intern",
+    "company": "StartUp Inc.",
+    "description": "Work on both frontend (React) and backend (Node.js).",
+    "skills": "JavaScript, React, Node.js, Express, MongoDB",
+    "education": "B.Tech in CS",
+    "experience": "0-1 year",
+    "location": "Hybrid - Pune",
+    "duration": "6 months"
+  },
+  {
+    "title": "DevOps Intern",
+    "company": "CloudOps Solutions",
+    "description": "Help manage cloud infrastructure using AWS and Docker. Automate CI/CD pipelines.",
+    "skills": "Linux, Docker, AWS, CI/CD, Bash",
+    "education": "B.Tech in CS or IT",
+    "experience": "Familiarity with Linux and Docker",
+    "location": "Remote",
+    "duration": "6 months"
+  },
+  {
+    "title": "Data Engineering Intern",
+    "company": "BigData Corp",
+    "description": "Build data pipelines and ETL processes using Apache Spark and SQL.",
+    "skills": "Python, SQL, Apache Spark, ETL",
+    "education": "B.Tech in CS",
+    "experience": "Basic knowledge of databases and Spark",
+    "location": "On-site - Mumbai",
+    "duration": "3 months"
+  },
+  {
+    "title": "Cybersecurity Intern",
+    "company": "SecureNet",
+    "description": "Assist in vulnerability assessment and penetration testing of web applications.",
+    "skills": "Networking, Python, Penetration Testing, Linux",
+    "education": "B.Tech in Cyber Security or related",
+    "experience": "CTF participation or security projects",
+    "location": "Hybrid - Delhi",
+    "duration": "6 months"
+  },
+  {
+    "title": "Mobile App Dev Intern",
+    "company": "Appify",
+    "description": "Develop cross-platform mobile apps using Flutter.",
+    "skills": "Flutter, Dart, Firebase",
+    "education": "BCA/B.Tech",
+    "experience": "Completed at least one Flutter app project",
+    "location": "Remote",
+    "duration": "3 months"
+  }
+]

@@ -63,70 +63,93 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen" style={{ padding: '2rem 1rem' }}>
+      <div className="container dashboard-grid">
         
-        <header className="flex justify-between items-center bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-          <h1 className="text-2xl font-bold text-gray-900">Internship Dashboard</h1>
+        <header className="glass-header">
+          <h1 className="page-title">Internship Dashboard</h1>
           <button 
             onClick={() => {
               localStorage.removeItem("user_id");
               router.push("/");
             }}
-            className="text-sm text-gray-500 hover:text-gray-900"
+            className="btn btn-logout"
           >
             Logout
           </button>
         </header>
 
         {/* Upload Section */}
-        <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-          <h2 className="text-lg font-semibold mb-4">Upload Resume</h2>
-          <form onSubmit={handleUpload} className="flex gap-4 items-end">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Select PDF</label>
-              <input 
-                type="file" 
-                accept=".pdf,.txt"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              />
+        <section className="glass-card">
+          <h2 className="section-title">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            Upload Resume
+          </h2>
+          <form onSubmit={handleUpload} className="upload-section">
+            <div className="upload-row">
+              <div style={{ flex: 1 }}>
+                <label className="form-label">Select PDF or TXT</label>
+                <input 
+                  type="file" 
+                  accept=".pdf,.txt"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="file-input"
+                />
+              </div>
+              <button 
+                type="submit" 
+                disabled={!file || uploading}
+                className="btn btn-primary"
+                style={{ width: 'auto', padding: '0.75rem 2rem' }}
+              >
+                {uploading ? "Analyzing..." : "Analyze & Match"}
+              </button>
             </div>
-            <button 
-              type="submit" 
-              disabled={!file || uploading}
-              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-300"
-            >
-              {uploading ? "Analyzing..." : "Analyze & Match"}
-            </button>
           </form>
-          {error && <p className="mt-2 text-red-500 text-sm">{error}</p>}
+          {error && <p className="error-text" style={{ marginTop: '1rem' }}>{error}</p>}
         </section>
 
         {/* Results Section */}
         {matches && (
-          <div className="space-y-6">
-            
-            <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold mb-4 text-gray-900">Your Extracted Profile</h2>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="font-medium text-gray-500">Name:</span> {matches.candidate.name}</div>
-                <div><span className="font-medium text-gray-500">Skills:</span> {matches.candidate.skills.join(", ")}</div>
-                <div className="col-span-2"><span className="font-medium text-gray-500">Education:</span> {matches.candidate.education}</div>
-                <div className="col-span-2"><span className="font-medium text-gray-500">Experience:</span> {matches.candidate.experience}</div>
+          <>
+            <section className="glass-card">
+              <h2 className="section-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                Your Extracted Profile
+              </h2>
+              <div className="grid-profile">
+                <div className="profile-item">
+                  <span className="profile-label">Name</span>
+                  <div className="profile-value">{matches.candidate.name}</div>
+                </div>
+                <div className="profile-item">
+                  <span className="profile-label">Skills</span>
+                  <div className="profile-value">{matches.candidate.skills.join(", ")}</div>
+                </div>
+                <div className="profile-item" style={{ gridColumn: '1 / -1' }}>
+                  <span className="profile-label">Education</span>
+                  <div className="profile-value">{matches.candidate.education}</div>
+                </div>
+                <div className="profile-item" style={{ gridColumn: '1 / -1' }}>
+                  <span className="profile-label">Experience</span>
+                  <div className="profile-value">{matches.candidate.experience}</div>
+                </div>
               </div>
             </section>
 
-            <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold mb-4 text-gray-900">Top Matches (FAISS Vector Search)</h2>
-              <ul className="space-y-3">
+            <section className="glass-card">
+              <h2 className="section-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                Top Matches (FAISS Vector Search)
+              </h2>
+              <ul className="matches-list">
                 {matches.raw_matches.map((m: any, idx: number) => (
-                  <li key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded border border-gray-100">
+                  <li key={idx} className="match-item">
                     <div>
-                      <div className="font-semibold text-gray-900">{m.title}</div>
-                      <div className="text-sm text-gray-500">{m.company}</div>
+                      <div className="match-title">{m.title}</div>
+                      <div className="match-company">{m.company}</div>
                     </div>
-                    <div className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+                    <div className="match-score">
                       Score: {m.l2_distance.toFixed(4)}
                     </div>
                   </li>
@@ -134,16 +157,17 @@ export default function Dashboard() {
               </ul>
             </section>
 
-            <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold mb-4 text-gray-900">AI Evaluation Rationale</h2>
-              <div className="prose max-w-none text-gray-700 whitespace-pre-wrap text-sm border-l-4 border-blue-500 pl-4">
+            <section className="glass-card">
+              <h2 className="section-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                AI Evaluation Rationale
+              </h2>
+              <div className="rationale-box">
                 {matches.llm_rationale}
               </div>
             </section>
-            
-          </div>
+          </>
         )}
-
       </div>
     </div>
   );

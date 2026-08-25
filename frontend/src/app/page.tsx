@@ -42,18 +42,23 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex-center">
-      <div className="auth-container">
-        <div className="glass-card auth-box">
+    <main className="auth-layout">
+      <div className="auth-sidebar">
+        <h1>Internship<br/>Matcher</h1>
+        <p>Discover your next great opportunity with AI-powered resume analysis and semantic matching.</p>
+      </div>
+      
+      <div className="auth-content">
+        <div className="auth-box">
           <h2 className="auth-title">
-            {isLogin ? "Welcome Back" : "Join Us"}
+            {isLogin ? "Welcome back" : "Create an account"}
           </h2>
           <p className="auth-subtitle">
-            Internship Matching System
+            {isLogin ? "Please enter your details to sign in." : "Start your journey today."}
           </p>
 
           <form onSubmit={handleSubmit}>
-            {error && <div className="error-text">{error}</div>}
+            {error && <div className="error-box">{error}</div>}
             
             <div className="form-group">
               <label className="form-label" htmlFor="email-address">Email address</label>
@@ -86,18 +91,22 @@ export default function Home() {
             <button
               type="submit"
               className="btn btn-primary"
+              style={{ width: '100%', padding: '0.85rem' }}
               disabled={loading}
             >
               {loading ? "Processing..." : isLogin ? "Sign In" : "Register"}
             </button>
           </form>
           
-          <div className="flex-center" style={{ marginTop: '1rem' }}>
+          <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              {isLogin ? "Don't have an account? " : "Already have an account? "}
+            </span>
             <button 
-              className="btn btn-text"
+              className="btn-text"
               onClick={() => setIsLogin(!isLogin)}
             >
-              {isLogin ? "Need an account? Register" : "Already have an account? Sign in"}
+              {isLogin ? "Sign up" : "Sign in"}
             </button>
           </div>
         </div>

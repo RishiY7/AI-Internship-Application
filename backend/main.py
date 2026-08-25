@@ -46,6 +46,11 @@ class CandidateExtracted(BaseModel):
     experience: str
     projects: str
 
+class InsightRequest(BaseModel):
+    user_id: int
+    company: str
+    title: str
+
 # --- Helpers ---
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -96,23 +101,25 @@ async def upload_resume(user_id: int, file: UploadFile = File(...), db: Session 
         
     content = await file.read()
     
-    # Simple text extraction for demo purposes (handles PDF)
     try:
         raw_text = extract_text_from_pdf(content) if file.filename.endswith(".pdf") else content.decode("utf-8")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not parse file: {e}")
         
-    # Use LLM to extract JSON structure
     try:
         extracted_data = parse_resume_with_llm(raw_text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Extraction failed: {e}")
+    
+    # Mark all other resumes as inactive
+    db.query(models.Resume).filter(models.Resume.user_id == user_id).update({"is_active": False})
     
     # Save to DB
     resume = models.Resume(
         filename=file.filename,
         raw_text=raw_text,
         structured_data=json.dumps(extracted_data),
+        is_active=True,
         owner=db_user
     )
     db.add(resume)
@@ -120,15 +127,34 @@ async def upload_resume(user_id: int, file: UploadFile = File(...), db: Session 
     
     return {"message": "Resume processed successfully", "extracted_data": extracted_data}
 
+@app.get("/api/resumes/{user_id}")
+def get_resumes(user_id: int, db: Session = Depends(get_db)):
+    resumes = db.query(models.Resume).filter(models.Resume.user_id == user_id).order_by(models.Resume.id.desc()).all()
+    return [{"id": r.id, "filename": r.filename, "is_active": r.is_active} for r in resumes]
+
+@app.post("/api/resumes/{resume_id}/activate")
+def activate_resume(resume_id: int, user_id: int, db: Session = Depends(get_db)):
+    target = db.query(models.Resume).filter(models.Resume.id == resume_id, models.Resume.user_id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Resume not found")
+        
+    db.query(models.Resume).filter(models.Resume.user_id == user_id).update({"is_active": False})
+    target.is_active = True
+    db.commit()
+    return {"message": "Resume activated"}
+
 @app.get("/api/matches/{user_id}")
 def get_matches(user_id: int, db: Session = Depends(get_db)):
-    resume = db.query(models.Resume).filter(models.Resume.user_id == user_id).order_by(models.Resume.id.desc()).first()
+    # Try getting active resume first, fallback to most recent
+    resume = db.query(models.Resume).filter(models.Resume.user_id == user_id, models.Resume.is_active == True).first()
+    if not resume:
+        resume = db.query(models.Resume).filter(models.Resume.user_id == user_id).order_by(models.Resume.id.desc()).first()
+        
     if not resume:
         raise HTTPException(status_code=404, detail="No resume uploaded for this user")
         
     candidate_data = json.loads(resume.structured_data)
     
-    # Get matches from our engine
     try:
         raw_matches = matcher.get_raw_retrieval(candidate_data, k=3)
         llm_rationale = matcher.match_candidate(candidate_data)
@@ -140,3 +166,23 @@ def get_matches(user_id: int, db: Session = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Matching failed: {e}")
+
+@app.post("/api/generate_insights")
+def generate_insights(req: InsightRequest, db: Session = Depends(get_db)):
+    resume = db.query(models.Resume).filter(models.Resume.user_id == req.user_id, models.Resume.is_active == True).first()
+    if not resume:
+        resume = db.query(models.Resume).filter(models.Resume.user_id == req.user_id).order_by(models.Resume.id.desc()).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="No resume uploaded")
+        
+    candidate_data = json.loads(resume.structured_data)
+    
+    try:
+        cover_letter = matcher.generate_cover_letter(candidate_data, req.company, req.title)
+        skill_gap = matcher.generate_skill_gap(candidate_data, req.company, req.title)
+        return {
+            "cover_letter": cover_letter,
+            "skill_gap": skill_gap
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insight generation failed: {e}")

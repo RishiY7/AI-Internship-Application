@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -18,6 +18,7 @@ class Resume(Base):
     filename = Column(String)
     raw_text = Column(Text)
     structured_data = Column(Text) # JSON string of extracted skills/edu/etc
+    is_active = Column(Boolean, default=False)
     user_id = Column(Integer, ForeignKey("users.id"))
     
     owner = relationship("User", back_populates="resumes")

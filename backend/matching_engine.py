@@ -105,6 +105,38 @@ class InternshipMatcher:
             })
         return results
 
+    def get_internship_context(self, company, title):
+        if not self.vectorstore: return ""
+        query = f"Company: {company}\nTitle: {title}"
+        docs_and_scores = self.vectorstore.similarity_search_with_score(query, k=1)
+        if docs_and_scores:
+            return self._format_docs([docs_and_scores[0][0]])
+        return ""
+
+    def generate_cover_letter(self, candidate, company, title):
+        internship_context = self.get_internship_context(company, title)
+        candidate_summary = self.generate_candidate_summary(candidate)
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are an expert career coach. Write a professional, personalized cover letter for the candidate applying to the given internship. Highlight how their skills align with the internship requirements. Do not include placeholders like [Your Name] if possible, use the candidate's actual name."),
+            ("human", f"Internship Details:\n{internship_context}\n\nCandidate Resume:\n{candidate_summary}")
+        ])
+        
+        chain = prompt | self.llm | StrOutputParser()
+        return chain.invoke({})
+
+    def generate_skill_gap(self, candidate, company, title):
+        internship_context = self.get_internship_context(company, title)
+        candidate_summary = self.generate_candidate_summary(candidate)
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are an expert technical recruiter. Compare the candidate's resume with the internship details. Identify specifically what skills the candidate is missing or needs to improve to be a perfect fit. Be concise, actionable, and format as bullet points."),
+            ("human", f"Internship Details:\n{internship_context}\n\nCandidate Resume:\n{candidate_summary}")
+        ])
+        
+        chain = prompt | self.llm | StrOutputParser()
+        return chain.invoke({})
+
 if __name__ == "__main__":
     # Simple test if run directly
     matcher = InternshipMatcher()

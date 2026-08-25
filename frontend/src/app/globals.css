@@ -398,6 +398,25 @@ body {
   border: 1px solid var(--border);
 }
 
+.skill-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--bg-page);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.skill-badge {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 .full-width {
   grid-column: 1 / -1;
 }

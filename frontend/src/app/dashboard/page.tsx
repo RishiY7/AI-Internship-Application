@@ -7,10 +7,13 @@ export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [matches, setMatches] = useState<any>(null);
+  const [resumes, setResumes] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("dashboard");
-  const router = useRouter();
+  const [loadingInsights, setLoadingInsights] = useState<string | null>(null);
+  const [insightsData, setInsightsData] = useState<Record<string, any>>({});
   
+  const router = useRouter();
   const userId = typeof window !== "undefined" ? localStorage.getItem("user_id") : null;
 
   useEffect(() => {
@@ -19,6 +22,7 @@ export default function Dashboard() {
       return;
     }
     fetchMatches();
+    fetchResumes();
   }, [userId, router]);
 
   const fetchMatches = async () => {
@@ -30,6 +34,18 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.log("Failed to fetch matches");
+    }
+  };
+
+  const fetchResumes = async () => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/resumes/${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setResumes(data);
+      }
+    } catch (err) {
+      console.log("Failed to fetch resumes");
     }
   };
 
@@ -54,6 +70,7 @@ export default function Dashboard() {
         setError(err.detail || "Upload failed");
       } else {
         await fetchMatches();
+        await fetchResumes();
       }
     } catch (err) {
       setError("Network error during upload");
@@ -62,9 +79,40 @@ export default function Dashboard() {
     }
   };
 
+  const activateResume = async (resumeId: number) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/resumes/${resumeId}/activate?user_id=${userId}`, { method: 'POST' });
+      if (res.ok) {
+        fetchResumes();
+        fetchMatches(); // Refresh matches with new active resume
+      }
+    } catch (err) {
+      console.log("Error activating resume");
+    }
+  };
+
+  const handleGenerateInsights = async (company: string, title: string) => {
+    const matchKey = `${company}-${title}`;
+    setLoadingInsights(matchKey);
+    try {
+      const res = await fetch(`http://localhost:8000/api/generate_insights`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: parseInt(userId as string), company, title })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInsightsData(prev => ({...prev, [matchKey]: data}));
+      }
+    } catch (err) {
+      console.log("Error generating insights", err);
+    } finally {
+      setLoadingInsights(null);
+    }
+  };
+
   return (
     <div className="portal-layout">
-      
       {/* Sidebar */}
       <aside className="portal-sidebar">
         <div className="sidebar-header">
@@ -118,7 +166,7 @@ export default function Dashboard() {
         <header className="portal-header">
           <div className="header-title">
             {activeTab === 'dashboard' && 'Overview'}
-            {activeTab === 'profile' && 'My Profile'}
+            {activeTab === 'profile' && 'My Profile & Resumes'}
             {activeTab === 'settings' && 'Settings'}
           </div>
           
@@ -138,7 +186,6 @@ export default function Dashboard() {
               {error && <div className="error-box">{error}</div>}
               
               <div className="grid-2">
-                
                 {/* Upload Card */}
                 <div className="card">
                   <h2 className="card-title">
@@ -148,7 +195,7 @@ export default function Dashboard() {
                   <form onSubmit={handleUpload}>
                     <div className="upload-area">
                       <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.95rem' }}>
-                        Upload your latest resume (PDF or TXT) to get matched with internships.
+                        Upload a new resume (PDF/TXT) to re-evaluate matches.
                       </p>
                       <input 
                         type="file" 
@@ -158,11 +205,7 @@ export default function Dashboard() {
                       />
                     </div>
                     <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end' }}>
-                      <button 
-                        type="submit" 
-                        disabled={!file || uploading}
-                        className="btn btn-primary"
-                      >
+                      <button type="submit" disabled={!file || uploading} className="btn btn-primary">
                         {uploading ? "Analyzing..." : "Analyze & Match"}
                       </button>
                     </div>
@@ -173,7 +216,7 @@ export default function Dashboard() {
                 <div className="card">
                   <h2 className="card-title">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                    Extracted Profile
+                    Active Profile Snapshot
                   </h2>
                   
                   {matches ? (
@@ -184,7 +227,12 @@ export default function Dashboard() {
                       </div>
                       <div className="profile-field">
                         <span className="profile-label">Top Skills</span>
-                        <div className="profile-value">{matches.candidate.skills.slice(0, 4).join(", ")}{matches.candidate.skills.length > 4 ? "..." : ""}</div>
+                        <div className="skill-container">
+                          {matches.candidate.skills.slice(0, 4).map((skill: string, i: number) => (
+                            <span key={i} className="skill-badge">{skill}</span>
+                          ))}
+                          {matches.candidate.skills.length > 4 && <span className="skill-badge">...</span>}
+                        </div>
                       </div>
                       <div className="profile-field full-width">
                         <span className="profile-label">Education</span>
@@ -193,38 +241,72 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                      No profile data available. Upload a resume.
+                      No active profile data.
                     </div>
                   )}
                 </div>
               </div>
 
               {matches && (
-                <div className="grid-2">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <div className="card">
                     <h2 className="card-title">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                      Top Matches
+                      Top Internship Matches
                     </h2>
+                    
                     <div className="match-list">
-                      {matches.raw_matches.map((m: any, idx: number) => (
-                        <div key={idx} className="match-card">
-                          <div>
-                            <div className="match-title">{m.title}</div>
-                            <div className="match-company">{m.company}</div>
+                      {matches.raw_matches.map((m: any, idx: number) => {
+                        const matchKey = `${m.company}-${m.title}`;
+                        const insight = insightsData[matchKey];
+                        const isLoading = loadingInsights === matchKey;
+                        
+                        return (
+                          <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.25rem', backgroundColor: 'white' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <div className="match-title" style={{ fontSize: '1.15rem' }}>{m.title}</div>
+                                <div className="match-company" style={{ fontSize: '1rem', color: 'var(--primary)' }}>{m.company}</div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div className="match-badge">Match Score: {m.l2_distance.toFixed(3)}</div>
+                                <button 
+                                  className="btn btn-primary"
+                                  disabled={isLoading || insight}
+                                  onClick={() => handleGenerateInsights(m.company, m.title)}
+                                >
+                                  {isLoading ? "Generating..." : insight ? "Insights Ready" : "Generate Cover Letter & Skill Gap"}
+                                </button>
+                              </div>
+                            </div>
+                            
+                            {/* Insight Render Block */}
+                            {insight && (
+                              <div className="grid-2" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed var(--border)' }}>
+                                <div>
+                                  <h3 style={{ fontSize: '0.95rem', color: 'var(--text-main)', marginBottom: '0.5rem', fontWeight: 600 }}>Skill Gap Analysis</h3>
+                                  <div className="rationale" style={{ backgroundColor: '#fef3c7', color: '#92400e', whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
+                                    {insight.skill_gap}
+                                  </div>
+                                </div>
+                                <div>
+                                  <h3 style={{ fontSize: '0.95rem', color: 'var(--text-main)', marginBottom: '0.5rem', fontWeight: 600 }}>AI Cover Letter Draft</h3>
+                                  <div className="rationale" style={{ backgroundColor: '#f3f4f6', color: '#1e293b', whiteSpace: 'pre-wrap', fontSize: '0.9rem', height: '300px', overflowY: 'auto' }}>
+                                    {insight.cover_letter}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="match-badge">
-                            Score: {m.l2_distance.toFixed(3)}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
                   <div className="card">
                     <h2 className="card-title">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                      AI Rationale
+                      Overall AI Rationale
                     </h2>
                     <div className="rationale">
                       {matches.llm_rationale}
@@ -236,34 +318,71 @@ export default function Dashboard() {
           )}
 
           {activeTab === 'profile' && (
-            <div className="card">
-              <h2 className="card-title">Full Profile Details</h2>
-              {matches ? (
-                <div className="profile-details" style={{ gridTemplateColumns: '1fr' }}>
-                  <div className="profile-field">
-                    <span className="profile-label">Name</span>
-                    <div className="profile-value">{matches.candidate.name}</div>
+            <div className="grid-2">
+              <div className="card">
+                <h2 className="card-title">Active Profile Details</h2>
+                {matches ? (
+                  <div className="profile-details" style={{ gridTemplateColumns: '1fr' }}>
+                    <div className="profile-field">
+                      <span className="profile-label">Name</span>
+                      <div className="profile-value">{matches.candidate.name}</div>
+                    </div>
+                    <div className="profile-field">
+                      <span className="profile-label">All Skills</span>
+                      <div className="skill-container">
+                        {matches.candidate.skills.map((skill: string, i: number) => (
+                          <span key={i} className="skill-badge">{skill}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="profile-field">
+                      <span className="profile-label">Education</span>
+                      <div className="profile-value">{matches.candidate.education}</div>
+                    </div>
+                    <div className="profile-field">
+                      <span className="profile-label">Experience</span>
+                      <div className="profile-value" style={{ whiteSpace: 'pre-wrap' }}>{matches.candidate.experience}</div>
+                    </div>
+                    <div className="profile-field">
+                      <span className="profile-label">Projects</span>
+                      <div className="profile-value" style={{ whiteSpace: 'pre-wrap' }}>{matches.candidate.projects}</div>
+                    </div>
                   </div>
-                  <div className="profile-field">
-                    <span className="profile-label">All Skills</span>
-                    <div className="profile-value">{matches.candidate.skills.join(", ")}</div>
-                  </div>
-                  <div className="profile-field">
-                    <span className="profile-label">Education</span>
-                    <div className="profile-value">{matches.candidate.education}</div>
-                  </div>
-                  <div className="profile-field">
-                    <span className="profile-label">Experience</span>
-                    <div className="profile-value" style={{ whiteSpace: 'pre-wrap' }}>{matches.candidate.experience}</div>
-                  </div>
-                  <div className="profile-field">
-                    <span className="profile-label">Projects</span>
-                    <div className="profile-value" style={{ whiteSpace: 'pre-wrap' }}>{matches.candidate.projects}</div>
-                  </div>
+                ) : (
+                  <p style={{ color: 'var(--text-muted)' }}>No profile data available.</p>
+                )}
+              </div>
+              
+              <div className="card">
+                <h2 className="card-title">Resume Manager</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
+                  Manage multiple versions of your resume. Select an active resume to re-match with internships.
+                </p>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {resumes.map(r => (
+                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', border: r.is_active ? '2px solid var(--primary)' : '1px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: r.is_active ? 'var(--primary-light)' : 'white' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{r.filename}</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Resume ID: #{r.id}</span>
+                      </div>
+                      
+                      {r.is_active ? (
+                        <span style={{ padding: '0.35rem 0.75rem', backgroundColor: 'var(--primary)', color: 'white', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 600 }}>Active</span>
+                      ) : (
+                        <button 
+                          className="btn btn-text" 
+                          style={{ border: '1px solid var(--border)', padding: '0.4rem 0.8rem' }}
+                          onClick={() => activateResume(r.id)}
+                        >
+                          Set Active
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {resumes.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No resumes uploaded.</p>}
                 </div>
-              ) : (
-                <p style={{ color: 'var(--text-muted)' }}>No profile data available.</p>
-              )}
+              </div>
             </div>
           )}
 

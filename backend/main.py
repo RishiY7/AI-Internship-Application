@@ -246,3 +246,18 @@ def generate_insights(req: InsightRequest, db: Session = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Insight generation failed: {e}")
+
+
+@app.get("/api/opportunities")
+def get_opportunities():
+    """Return all internship listings from the dataset (public — no auth required)."""
+    data_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "data_prep", "internship_data.json"
+    )
+    try:
+        with open(data_path, "r") as f:
+            internships = json.load(f)
+        return internships
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not load opportunities: {e}")

@@ -18,8 +18,15 @@ def build_vector_store():
     # 3. Convert data to LangChain Documents
     docs = []
     for item in internships_data:
-        # Combine title, description, and skills into one string for embedding
-        page_content = f"Title: {item['title']}\nSkills Required: {item['skills']}\nDescription: {item['description']}\nEducation: {item['education']}\nExperience: {item['experience']}\nLocation: {item['location']}"
+        # Embed only skill/domain-relevant fields — location is metadata-only
+        # (location preference shouldn't affect semantic skill matching)
+        page_content = (
+            f"Title: {item['title']}\n"
+            f"Skills Required: {item['skills']}\n"
+            f"Description: {item['description']}\n"
+            f"Education: {item['education']}\n"
+            f"Experience: {item['experience']}"
+        )
         
         # Store structured data as metadata
         metadata = {

@@ -7,7 +7,6 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 from config import GROQ_MODEL, GEMINI_MODEL, TOP_K_MATCHES
 
 # Load Environment Variables (.env file containing GROQ_API_KEY)
@@ -29,18 +28,28 @@ class InternshipMatcher:
             print(f"Error loading vector store from {vectorstore_path}: {e}")
             self.vectorstore = None
             
-        # Initialize Groq LLM
-        # Ensure you have GROQ_API_KEY set in your environment variables or .env file
+        # Groq — ultra-fast inference for RAG evaluation and skill gap (structured, concise)
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
-            print("WARNING: GROQ_API_KEY is not set. The matching engine will fail when invoking LLM.")
-            
+            print("WARNING: GROQ_API_KEY is not set.")
+
         self.llm = ChatGroq(
             model=GROQ_MODEL,
-            temperature=0.2, # Low temperature for factual, grounded matching
-            max_tokens=512,
+            temperature=0.2,   # Low temperature for factual, grounded matching
+            max_tokens=1024,   # Enough for full rationale without truncation
         )
-        
+
+        # Gemini — multimodal + long-form for cover letter generation
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not gemini_api_key:
+            print("WARNING: GEMINI_API_KEY is not set. Cover letter generation will fail.")
+
+        self.gemini_llm = ChatGoogleGenerativeAI(
+            model=GEMINI_MODEL,
+            google_api_key=gemini_api_key,
+            temperature=0.4,   # Slightly creative for natural-sounding prose
+        )
+
         # Setup RAG chain
         self._setup_chain()
 
@@ -70,34 +79,60 @@ class InternshipMatcher:
         ])
 
         # 3. Build the RAG Chain using LCEL
+        # Input: dict with "embedding_query" (for FAISS) and "candidate_summary" (for LLM prompt)
         self.rag_chain = (
-            {"context": retriever | self._format_docs, "candidate_summary": RunnablePassthrough()}
+            {
+                "context": (lambda x: x["embedding_query"]) | retriever | self._format_docs,
+                "candidate_summary": lambda x: x["candidate_summary"],
+            }
             | match_prompt
             | self.llm
             | StrOutputParser()
         )
         
-    def generate_candidate_summary(self, candidate):
-        """Convert structured candidate data to string format for embedding"""
+    def _build_embedding_query(self, candidate) -> str:
+        """
+        Skills/domain-only string used for FAISS vector search.
+        Name is intentionally excluded — it's noise for semantic skill matching.
+        """
         skills_str = ", ".join(candidate.get("skills", []))
-        return f"Name: {candidate['name']}\nSkills: {skills_str}\nEducation: {candidate['education']}\nExperience: {candidate['experience']}\nProjects: {candidate['projects']}"
+        return (
+            f"Skills: {skills_str}\n"
+            f"Education: {candidate.get('education', 'N/A')}\n"
+            f"Experience: {candidate.get('experience', 'N/A')}\n"
+            f"Projects: {candidate.get('projects', 'N/A')}"
+        )
+
+    def generate_candidate_summary(self, candidate) -> str:
+        """
+        Full candidate summary including name — used in LLM prompts only (not embeddings).
+        """
+        skills_str = ", ".join(candidate.get("skills", []))
+        return (
+            f"Name: {candidate.get('name', 'Unknown')}\n"
+            f"Skills: {skills_str}\n"
+            f"Education: {candidate.get('education', 'N/A')}\n"
+            f"Experience: {candidate.get('experience', 'N/A')}\n"
+            f"Projects: {candidate.get('projects', 'N/A')}"
+        )
 
     def match_candidate(self, candidate):
         if not self.vectorstore:
             return "Vector store not loaded."
-            
+        # Use embedding query (no name) for retrieval, full summary for LLM prompt
+        embedding_query = self._build_embedding_query(candidate)
         candidate_summary = self.generate_candidate_summary(candidate)
-        result = self.rag_chain.invoke(candidate_summary)
+        result = self.rag_chain.invoke({"embedding_query": embedding_query, "candidate_summary": candidate_summary})
         return result
 
     def get_raw_retrieval(self, candidate, k=3):
-        """Just get the retrieved documents and scores without LLM evaluation"""
+        """Get retrieved documents and scores without LLM evaluation."""
         if not self.vectorstore:
             return []
-        
-        candidate_summary = self.generate_candidate_summary(candidate)
-        docs_and_scores = self.vectorstore.similarity_search_with_score(candidate_summary, k=k)
-        
+
+        embedding_query = self._build_embedding_query(candidate)
+        docs_and_scores = self.vectorstore.similarity_search_with_score(embedding_query, k=k)
+
         results = []
         for doc, score in docs_and_scores:
             # Convert L2 distance to a 0–100% relevance score (lower L2 = higher relevance)
@@ -110,12 +145,31 @@ class InternshipMatcher:
             })
         return results
 
-    def get_internship_context(self, company, title):
-        if not self.vectorstore: return ""
-        query = f"Company: {company}\nTitle: {title}"
-        docs_and_scores = self.vectorstore.similarity_search_with_score(query, k=1)
-        if docs_and_scores:
-            return self._format_docs([docs_and_scores[0][0]])
+    def get_internship_context(self, company: str, title: str) -> str:
+        """
+        Look up an internship directly from the JSON dataset by company+title.
+        More reliable than a second FAISS search (which can return the wrong entry).
+        """
+        data_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data_prep", "internship_data.json"
+        )
+        try:
+            with open(data_path, "r") as f:
+                internships = json.load(f)
+            for item in internships:
+                if item["company"] == company and item["title"] == title:
+                    return (
+                        f"[{item['company']} - {item['title']}]\n"
+                        f"Description: {item['description']}\n"
+                        f"Skills Required: {item['skills']}\n"
+                        f"Education: {item['education']}\n"
+                        f"Experience: {item['experience']}\n"
+                        f"Location: {item['location']}\n"
+                        f"Duration: {item['duration']}"
+                    )
+        except Exception as e:
+            print(f"Warning: Could not load internship data for context: {e}")
         return ""
 
     def generate_cover_letter(self, candidate, company, title):
@@ -127,11 +181,8 @@ class InternshipMatcher:
         candidate_summary = self.generate_candidate_summary(candidate)
 
         gemini_api_key = os.getenv("GEMINI_API_KEY")
-        gemini_llm = ChatGoogleGenerativeAI(
-            model=GEMINI_MODEL,
-            google_api_key=gemini_api_key,
-            temperature=0.4,  # Slightly creative for natural-sounding writing
-        )
+        if not gemini_api_key:
+            raise RuntimeError("GEMINI_API_KEY not set. Cannot generate cover letter.")
 
         prompt = ChatPromptTemplate.from_messages([
             ("system",
@@ -142,7 +193,7 @@ class InternshipMatcher:
             ("human", f"Internship Details:\n{internship_context}\n\nCandidate Resume:\n{candidate_summary}")
         ])
 
-        chain = prompt | gemini_llm | StrOutputParser()
+        chain = prompt | self.gemini_llm | StrOutputParser()
         return chain.invoke({})
 
     def generate_skill_gap(self, candidate, company, title):

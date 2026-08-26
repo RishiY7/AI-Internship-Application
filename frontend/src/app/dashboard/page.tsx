@@ -269,7 +269,7 @@ export default function Dashboard() {
                                 <div className="match-company" style={{ fontSize: '1rem', color: 'var(--primary)' }}>{m.company}</div>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <div className="match-badge">Match Score: {m.l2_distance.toFixed(3)}</div>
+                                <div className="match-badge">Relevance: {m.relevance_score}%</div>
                                 <button 
                                   className="btn btn-primary"
                                   disabled={isLoading || insight}

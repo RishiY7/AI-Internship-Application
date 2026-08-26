@@ -13,6 +13,7 @@ import models
 from matching_engine import InternshipMatcher
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
+from config import GROQ_MODEL
 
 # Create DB tables
 Base.metadata.create_all(bind=engine)
@@ -60,7 +61,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
     return text
 
 def parse_resume_with_llm(raw_text: str) -> dict:
-    llm = ChatGroq(model="qwen/qwen3.6-27b", temperature=0)
+    llm = ChatGroq(model=GROQ_MODEL, temperature=0)
     structured_llm = llm.with_structured_output(CandidateExtracted)
     
     prompt = ChatPromptTemplate.from_messages([

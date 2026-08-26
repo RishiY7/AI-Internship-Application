@@ -56,3 +56,11 @@ To verify the system against the 5-10 distinct candidate archetypes specified in
 cd backend
 python tests/run_tests.py
 ```
+
+## Limitations & Future Work
+
+- **Small internship dataset:** The vector store currently contains only 10 internship entries — sufficient to demonstrate the RAG pipeline but not representative of a production system. Scaling to thousands of listings would improve match diversity and accuracy.
+- **No JWT auth:** User sessions are stored via `user_id` in `localStorage`. A production deployment would replace this with JWT tokens or HTTP-only cookies.
+- **Normalised relevance score:** Raw FAISS L2 distances are converted to a 0–100% relevance score using `max(0, 1 - L2/2) * 100`. This is an approximation; calibration against real user data would improve reliability.
+- **Single embedding model:** Only one embedding model (`all-MiniLM-L6-v2`) is used. A fine-tuned domain-specific model could improve matching quality for technical roles.
+

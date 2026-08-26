@@ -7,6 +7,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+from config import GROQ_MODEL, TOP_K_MATCHES
 
 # Load Environment Variables (.env file containing GROQ_API_KEY)
 dotenv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
@@ -34,7 +35,7 @@ class InternshipMatcher:
             print("WARNING: GROQ_API_KEY is not set. The matching engine will fail when invoking LLM.")
             
         self.llm = ChatGroq(
-            model="qwen/qwen3.6-27b",
+            model=GROQ_MODEL,
             temperature=0.2, # Low temperature for factual, grounded matching
             max_tokens=512,
         )
@@ -55,7 +56,7 @@ class InternshipMatcher:
         # 1. Setup the Retriever
         retriever = self.vectorstore.as_retriever(
             search_type="similarity",
-            search_kwargs={"k": 3} # Retrieve top 3 internships
+            search_kwargs={"k": TOP_K_MATCHES}
         )
 
         # 2. Create the Prompt Template
@@ -98,10 +99,13 @@ class InternshipMatcher:
         
         results = []
         for doc, score in docs_and_scores:
+            # Convert L2 distance to a 0–100% relevance score (lower L2 = higher relevance)
+            relevance_score = round(max(0.0, 1.0 - float(score) / 2.0) * 100, 1)
             results.append({
                 "company": doc.metadata["company"],
                 "title": doc.metadata["title"],
-                "l2_distance": float(score)  # Lower is better in FAISS L2 distance
+                "l2_distance": float(score),       # Raw FAISS L2 distance (lower = better)
+                "relevance_score": relevance_score  # Human-readable 0–100% score
             })
         return results
 

@@ -1,13 +1,17 @@
-﻿"use client";
+"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState("");   // live progress text
   const [matches, setMatches] = useState<any>(null);
   const [resumes, setResumes] = useState<any[]>([]);
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [oppSearch, setOppSearch] = useState("");
+  const [oppFilter, setOppFilter] = useState("All");
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loadingInsights, setLoadingInsights] = useState<string | null>(null);
@@ -22,6 +26,7 @@ export default function Dashboard() {
     certifications: "", languages: "", hobbies: "", achievements: "",
   });
 
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
   const userId = typeof window !== "undefined" ? localStorage.getItem("user_id") : null;
 
@@ -29,9 +34,20 @@ export default function Dashboard() {
     if (!userId) { router.push("/"); return; }
     fetchMatches();
     fetchResumes();
+    fetchOpportunities();
     const saved = localStorage.getItem("profile_" + userId);
     if (saved) setProfile(JSON.parse(saved));
   }, [userId, router]);
+
+  const fetchOpportunities = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/opportunities");
+      if (res.ok) {
+        const data = await res.json();
+        setOpportunities(Array.isArray(data) ? data : []);
+      }
+    } catch { console.log("Failed to fetch opportunities"); }
+  };
 
   const fetchMatches = async () => {
     try {
@@ -47,19 +63,58 @@ export default function Dashboard() {
     } catch { console.log("Failed to fetch resumes"); }
   };
 
+  /** Poll /api/analysis_status/{userId} until done, then load matches */
+  const pollUntilDone = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/analysis_status/" + userId);
+        const { status, step } = await res.json();
+        setAnalysisStep(step || "");
+        if (status === "done") {
+          clearInterval(pollRef.current!);
+          pollRef.current = null;
+          setUploading(false);
+          setAnalysisStep("");
+          await fetchMatches();
+          await fetchResumes();
+        } else if (status === "error") {
+          clearInterval(pollRef.current!);
+          pollRef.current = null;
+          setUploading(false);
+          setError("Analysis failed: " + step);
+          setAnalysisStep("");
+        }
+      } catch {
+        clearInterval(pollRef.current!);
+        pollRef.current = null;
+        setUploading(false);
+      }
+    }, 1500);
+  };
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !userId) return;
-    setUploading(true); setError("");
+    setUploading(true); setError(""); setAnalysisStep("Uploading resume…");
     const formData = new FormData();
     formData.append("file", file);
     try {
       const res = await fetch("http://localhost:8000/api/upload_resume?user_id=" + userId, { method: "POST", body: formData });
-      if (!res.ok) { const err = await res.json(); setError(err.detail || "Upload failed"); }
-      else { await fetchMatches(); await fetchResumes(); }
-    } catch { setError("Network error during upload"); }
-    finally { setUploading(false); }
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.detail || "Upload failed");
+        setUploading(false); setAnalysisStep("");
+      } else {
+        // Upload returned — now poll for background matching progress
+        pollUntilDone();
+      }
+    } catch {
+      setError("Network error during upload");
+      setUploading(false); setAnalysisStep("");
+    }
   };
+
 
   const activateResume = async (resumeId: number) => {
     try {
@@ -76,7 +131,7 @@ export default function Dashboard() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: parseInt(userId as string), company, title }),
       });
-      if (res.ok) setInsightsData(prev => ({ ...prev, [key]: await res.json() }));
+      if (res.ok) { const json = await res.json(); setInsightsData(prev => ({ ...prev, [key]: json })); }
     } catch { console.log("Error generating insights"); }
     finally { setLoadingInsights(null); }
   };
@@ -92,6 +147,7 @@ export default function Dashboard() {
     setTimeout(() => setProfileSaved(false), 2500);
   };
 
+  // Split helpers
   const splitLines = (s: string) => s.split(/\n|;/).map(l => l.trim()).filter(Boolean);
   const splitComma = (s: string) => s.split(",").map(l => l.trim()).filter(Boolean);
 
@@ -156,6 +212,12 @@ export default function Dashboard() {
             </svg>
             Dashboard
           </button>
+          <button className={"nav-item " + (activeTab === "opportunities" ? "active" : "")} onClick={() => setActiveTab("opportunities")}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+            </svg>
+            Opportunities
+          </button>
           <button className={"nav-item " + (activeTab === "profile" ? "active" : "")} onClick={() => setActiveTab("profile")}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
@@ -182,6 +244,7 @@ export default function Dashboard() {
         <header className="portal-header">
           <div className="header-title">
             {activeTab === "dashboard" && "Overview"}
+            {activeTab === "opportunities" && "Browse Opportunities"}
             {activeTab === "profile" && "My Profile"}
             {activeTab === "settings" && "Settings"}
           </div>
@@ -193,11 +256,34 @@ export default function Dashboard() {
 
         <div className="portal-content">
 
+          {/* ============================================================
+              DASHBOARD TAB
+          ============================================================ */}
           {activeTab === "dashboard" && (
             <>
               {error && <div className="error-box">{error}</div>}
 
+              {/* Stats Row — shown when we have match data */}
+              {candidate && (
+                <div className="stats-row">
+                  {[
+                    { label: "Skills Detected", value: candidate.skills.length, color: "#4f46e5", bg: "#e0e7ff", icon: "🧠" },
+                    { label: "Matches Found", value: matches.raw_matches.length, color: "#0891b2", bg: "#cffafe", icon: "🎯" },
+                    { label: "Resumes Uploaded", value: resumes.length, color: "#7c3aed", bg: "#ede9fe", icon: "📄" },
+                    { label: "Best Match Score", value: Math.max(...matches.raw_matches.map((m: any) => m.relevance_score)) + "%", color: "#059669", bg: "#d1fae5", icon: "⭐" },
+                  ].map((s, i) => (
+                    <div key={i} className="stat-card" style={{ borderTop: "3px solid " + s.color }}>
+                      <div className="stat-icon" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
+                      <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
+                      <div className="stat-label">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Upload + Active Profile Snapshot */}
               <div className="grid-2">
+                {/* Upload Card */}
                 <div className="card">
                   <h2 className="card-title">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -212,6 +298,13 @@ export default function Dashboard() {
                       </p>
                       <input type="file" accept=".pdf,.txt" onChange={e => setFile(e.target.files?.[0] || null)} className="file-input" />
                     </div>
+                    {/* Live progress indicator */}
+                    {uploading && analysisStep && (
+                      <div style={{ marginTop: "0.85rem", display: "flex", alignItems: "center", gap: "0.6rem", fontSize: "0.85rem", color: "var(--primary)" }}>
+                        <span style={{ display: "inline-block", width: "14px", height: "14px", border: "2px solid var(--primary)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                        {analysisStep}
+                      </div>
+                    )}
                     <div style={{ marginTop: "1.25rem", display: "flex", justifyContent: "flex-end" }}>
                       <button type="submit" disabled={!file || uploading} className="btn btn-primary">
                         {uploading ? "Analyzing…" : "Analyze & Match"}
@@ -220,6 +313,7 @@ export default function Dashboard() {
                   </form>
                 </div>
 
+                {/* Active Profile Snapshot */}
                 <div className="card">
                   <h2 className="card-title">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -228,43 +322,62 @@ export default function Dashboard() {
                     Active Profile Snapshot
                   </h2>
                   {candidate ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+
+                      {/* Name */}
                       <div className="snap-field">
                         <span className="snap-label">Full Name</span>
                         <div className="snap-value">{candidate.name}</div>
                       </div>
+
+                      {/* Skills — ALL badges, no slicing */}
                       <div className="snap-field">
                         <span className="snap-label">Skills ({candidate.skills.length} detected)</span>
-                        <div className="skill-container" style={{ marginTop: "0.3rem" }}>
+                        <div className="skill-container" style={{ marginTop: "0.4rem" }}>
                           {candidate.skills.map((s: string, i: number) => (
                             <span key={i} className="skill-badge">{s}</span>
                           ))}
                         </div>
                       </div>
+
+                      {/* Education — one box per entry */}
                       <div className="snap-field">
                         <span className="snap-label">Education</span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginTop: "0.3rem" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.4rem" }}>
                           {splitLines(candidate.education).map((line: string, i: number) => (
-                            <div key={i} className="info-box info-box--edu">{line}</div>
+                            <div key={i} className="info-box info-box--edu">
+                              <span className="info-box__icon">🎓</span>
+                              <span>{line}</span>
+                            </div>
                           ))}
                         </div>
                       </div>
+
+                      {/* Experience — one box per entry */}
                       {candidate.experience && candidate.experience !== "N/A" && (
                         <div className="snap-field">
                           <span className="snap-label">Experience</span>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginTop: "0.3rem" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.4rem" }}>
                             {splitLines(candidate.experience).map((line: string, i: number) => (
-                              <div key={i} className="info-box info-box--exp"><span className="info-box__bullet" />{line}</div>
+                              <div key={i} className="info-box info-box--exp">
+                                <span className="info-box__icon">💼</span>
+                                <span>{line}</span>
+                              </div>
                             ))}
                           </div>
                         </div>
                       )}
+
+                      {/* Projects — one box per entry */}
                       {candidate.projects && candidate.projects !== "N/A" && (
                         <div className="snap-field">
                           <span className="snap-label">Projects</span>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginTop: "0.3rem" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.4rem" }}>
                             {splitLines(candidate.projects).map((line: string, i: number) => (
-                              <div key={i} className="info-box info-box--proj">{line}</div>
+                              <div key={i} className="info-box info-box--proj">
+                                <span className="info-box__icon">🚀</span>
+                                <span>{line}</span>
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -281,22 +394,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {candidate && (
-                <div className="stats-row">
-                  {[
-                    { label: "Skills Detected", value: candidate.skills.length, color: "#4f46e5", bg: "#e0e7ff" },
-                    { label: "Matches Found", value: matches.raw_matches.length, color: "#0891b2", bg: "#cffafe" },
-                    { label: "Resumes Uploaded", value: resumes.length, color: "#7c3aed", bg: "#ede9fe" },
-                    { label: "Best Match Score", value: Math.max(...matches.raw_matches.map((m: any) => m.relevance_score)) + "%", color: "#059669", bg: "#d1fae5" },
-                  ].map((s, i) => (
-                    <div key={i} className="stat-card" style={{ borderTop: "3px solid " + s.color }}>
-                      <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-                      <div className="stat-label">{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
+              {/* Match Cards + Rationale */}
               {matches && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                   <div className="card">
@@ -312,31 +410,66 @@ export default function Dashboard() {
                         const insight = insightsData[key];
                         const isLoading = loadingInsights === key;
                         const sc = scoreColor(m.relevance_score);
+                        const reqSkills: string[] = m.required_skills
+                          ? (Array.isArray(m.required_skills) ? m.required_skills : splitComma(m.required_skills))
+                          : (m.skills ? splitComma(m.skills) : []);
+                        const workMode = m.work_mode || m.mode || "";
                         return (
                           <div key={idx} className="match-card-expanded">
+                            {/* Header row */}
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
-                              <div>
+                              <div style={{ flex: 1 }}>
                                 <div className="match-title">{m.title}</div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.3rem", flexWrap: "wrap" }}>
-                                  <span style={{ fontWeight: 600, color: "var(--primary)", fontSize: "0.95rem" }}>{m.company}</span>
-                                  {m.location && <span className="pill pill--neutral">{m.location}</span>}
-                                  {m.duration && <span className="pill pill--purple">{"⏱ " + m.duration}</span>}
+                                <div style={{ fontWeight: 600, color: "var(--primary)", fontSize: "0.95rem", marginTop: "0.2rem" }}>{m.company}</div>
+
+                                {/* Pills row: location, duration, work mode */}
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.55rem" }}>
+                                  {m.location && (
+                                    <span className={`pill ${m.location.toLowerCase().includes("remote") ? "pill--green" : m.location.toLowerCase().includes("hybrid") ? "pill--yellow" : "pill--blue"}`}>
+                                      📍 {m.location}
+                                    </span>
+                                  )}
+                                  {m.duration && <span className="pill pill--purple">⏱ {m.duration}</span>}
+                                  {workMode && <span className="pill pill--neutral">🖥 {workMode}</span>}
                                 </div>
+
+                                {/* Required skills tags */}
+                                {reqSkills.length > 0 && (
+                                  <div style={{ marginTop: "0.65rem" }}>
+                                    <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                      Required Skills
+                                    </span>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginTop: "0.3rem" }}>
+                                      {reqSkills.map((sk: string, si: number) => (
+                                        <span key={si} className="req-skill-tag">{sk}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.3rem", minWidth: "120px" }}>
-                                <span style={{ fontSize: "0.8rem", fontWeight: 700, padding: "0.25rem 0.75rem", borderRadius: "50px", background: sc.bg, color: sc.fg }}>
+
+                              {/* Score badge + progress bar */}
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.4rem", minWidth: "130px" }}>
+                                <span className="score-badge" style={{ background: sc.bg, color: sc.fg }}>
                                   {m.relevance_score}% Match
                                 </span>
-                                <div style={{ width: "100%", height: "5px", background: "#e2e8f0", borderRadius: "4px", overflow: "hidden" }}>
-                                  <div style={{ width: m.relevance_score + "%", height: "100%", background: sc.bar, borderRadius: "4px" }} />
+                                <div className="relevance-bar-track">
+                                  <div className="relevance-bar-fill" style={{ width: m.relevance_score + "%", background: sc.bar }} />
                                 </div>
+                                <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                                  {m.relevance_score >= 75 ? "Strong fit" : m.relevance_score >= 50 ? "Good fit" : "Partial fit"}
+                                </span>
                               </div>
                             </div>
-                            <div style={{ marginTop: "0.85rem", display: "flex", justifyContent: "flex-end" }}>
+
+                            {/* Generate insights button */}
+                            <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
                               <button className="btn btn-primary" disabled={isLoading || !!insight} onClick={() => handleGenerateInsights(m.company, m.title)}>
-                                {isLoading ? "Generating…" : insight ? "Insights Ready" : "Generate Cover Letter & Skill Gap"}
+                                {isLoading ? "Generating…" : insight ? "✓ Insights Ready" : "Generate Cover Letter & Skill Gap"}
                               </button>
                             </div>
+
+                            {/* Insights panel */}
                             {insight && (
                               <div className="grid-2" style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px dashed var(--border)" }}>
                                 <div>
@@ -354,16 +487,358 @@ export default function Dashboard() {
                       })}
                     </div>
                   </div>
-                  <div className="card">
-                    <h2 className="card-title">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                      </svg>
-                      Overall AI Rationale
-                    </h2>
-                    <div className="rationale">{matches.llm_rationale}</div>
-                  </div>
+
                 </div>
               )}
             </>
           )}
+
+          {/* ============================================================
+              OPPORTUNITIES TAB
+          ============================================================ */}
+          {activeTab === "opportunities" && (() => {
+            const locationTypes = ["All", "Remote", "Hybrid", "On-site"];
+            const filtered = opportunities.filter(opp => {
+              const matchSearch = oppSearch === "" ||
+                opp.title.toLowerCase().includes(oppSearch.toLowerCase()) ||
+                opp.company.toLowerCase().includes(oppSearch.toLowerCase()) ||
+                opp.skills.toLowerCase().includes(oppSearch.toLowerCase());
+              const matchFilter = oppFilter === "All" ||
+                opp.location.toLowerCase().includes(oppFilter.toLowerCase());
+              return matchSearch && matchFilter;
+            });
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                {/* Search + Filter Bar */}
+                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <div style={{ position: "relative", flex: 1, minWidth: "220px" }}>
+                    <svg style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      className="form-input"
+                      style={{ paddingLeft: "2.25rem" }}
+                      placeholder="Search by title, company, or skill…"
+                      value={oppSearch}
+                      onChange={e => setOppSearch(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                    {locationTypes.map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setOppFilter(t)}
+                        style={{
+                          padding: "0.4rem 0.9rem", borderRadius: "50px", fontSize: "0.82rem", fontWeight: 600,
+                          border: "1.5px solid", cursor: "pointer", transition: "all 0.15s",
+                          borderColor: oppFilter === t ? "var(--primary)" : "var(--border)",
+                          background: oppFilter === t ? "var(--primary)" : "white",
+                          color: oppFilter === t ? "white" : "var(--text-muted)",
+                        }}
+                      >{t}</button>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                    {filtered.length} of {opportunities.length} listings
+                  </span>
+                </div>
+
+                {/* Cards grid */}
+                {filtered.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)" }}>
+                    <p>No opportunities match your search.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1.25rem" }}>
+                    {filtered.map((opp: any, i: number) => {
+                      const isRemote = opp.location.toLowerCase().includes("remote");
+                      const isHybrid = opp.location.toLowerCase().includes("hybrid");
+                      const locColor = isRemote
+                        ? { bg: "#dcfce7", color: "#166534" }
+                        : isHybrid
+                        ? { bg: "#fef9c3", color: "#854d0e" }
+                        : { bg: "#e0e7ff", color: "#3730a3" };
+                      const skillList = opp.skills.split(",").map((s: string) => s.trim()).filter(Boolean);
+                      return (
+                        <div key={i} style={{ background: "white", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem", boxShadow: "var(--shadow-sm)", transition: "box-shadow 0.2s" }}
+                          onMouseEnter={e => (e.currentTarget.style.boxShadow = "var(--shadow-md)")}
+                          onMouseLeave={e => (e.currentTarget.style.boxShadow = "var(--shadow-sm)")}
+                        >
+                          {/* Header */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: "0.98rem", color: "var(--text-main)", lineHeight: 1.3 }}>{opp.title}</div>
+                              <div style={{ fontWeight: 600, color: "var(--primary)", fontSize: "0.85rem", marginTop: "0.2rem" }}>{opp.company}</div>
+                            </div>
+                            <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "0.2rem 0.6rem", borderRadius: "50px", background: locColor.bg, color: locColor.color, whiteSpace: "nowrap", flexShrink: 0 }}>
+                              {isRemote ? "Remote" : isHybrid ? "Hybrid" : "On-site"}
+                            </span>
+                          </div>
+
+                          {/* Meta pills */}
+                          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>📍 {opp.location}</span>
+                            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>⏱ {opp.duration}</span>
+                            {opp.education && <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>🎓 {opp.education}</span>}
+                          </div>
+
+                          {/* Description */}
+                          <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: 1.55, margin: 0 }}>
+                            {opp.description.length > 130 ? opp.description.slice(0, 130) + "…" : opp.description}
+                          </p>
+
+                          {/* Skills */}
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                            {skillList.slice(0, 5).map((s: string, si: number) => (
+                              <span key={si} style={{ fontSize: "0.7rem", background: "var(--primary-light)", color: "var(--primary)", padding: "0.15rem 0.5rem", borderRadius: "4px", fontWeight: 600 }}>{s}</span>
+                            ))}
+                            {skillList.length > 5 && (
+                              <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>+{skillList.length - 5} more</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* ============================================================
+              PROFILE TAB
+          ============================================================ */}
+          {activeTab === "profile" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+
+              {/* AI-Extracted Section (from resume) */}
+              {candidate && (
+                <div className="card">
+                  <h2 className="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" /><path d="M12 8v4l3 3" />
+                    </svg>
+                    AI-Extracted from Resume
+                  </h2>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem" }}>
+
+                    {/* Skills */}
+                    <div>
+                      <div className="extracted-section-label">
+                        <span className="extracted-label-dot" style={{ background: "#4f46e5" }} />
+                        Skills
+                      </div>
+                      <div className="skill-container" style={{ marginTop: "0.5rem" }}>
+                        {candidate.skills.map((s: string, i: number) => (
+                          <span key={i} className="skill-badge">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Education */}
+                    <div>
+                      <div className="extracted-section-label">
+                        <span className="extracted-label-dot" style={{ background: "#0891b2" }} />
+                        Education
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginTop: "0.5rem" }}>
+                        {splitLines(candidate.education).map((line: string, i: number) => (
+                          <div key={i} className="info-box info-box--edu">
+                            <span className="info-box__icon">🎓</span>
+                            <span>{line}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Experience — Timeline style */}
+                    {candidate.experience && candidate.experience !== "N/A" && (
+                      <div>
+                        <div className="extracted-section-label">
+                          <span className="extracted-label-dot" style={{ background: "#059669" }} />
+                          Experience
+                        </div>
+                        <div className="timeline" style={{ marginTop: "0.5rem" }}>
+                          {splitLines(candidate.experience).map((line: string, i: number) => (
+                            <div key={i} className="timeline-item">
+                              <div className="timeline-dot" />
+                              <div className="timeline-card">
+                                <div className="timeline-card__text">{line}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Projects — Individual cards */}
+                    {candidate.projects && candidate.projects !== "N/A" && (
+                      <div>
+                        <div className="extracted-section-label">
+                          <span className="extracted-label-dot" style={{ background: "#7c3aed" }} />
+                          Projects
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "0.75rem", marginTop: "0.5rem" }}>
+                          {splitLines(candidate.projects).map((line: string, i: number) => (
+                            <div key={i} className="project-card">
+                              <div className="project-card__num">#{i + 1}</div>
+                              <div className="project-card__text">{line}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Manual Profile — Personal Info */}
+              <div className="card">
+                {sectionTitle("Personal Information", (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                  </svg>
+                ))}
+                <div className="profile-details">
+                  {profileField("Full Name", "fullName")}
+                  {profileField("Phone", "phone", "tel")}
+                  {profileField("Location", "location", "text", "City, Country")}
+                  {profileField("Date of Birth", "dateOfBirth", "date")}
+                  {profileSelect("Gender", "gender", ["Male", "Female", "Non-binary", "Prefer not to say"])}
+                  {profileTextarea("Short Bio", "bio", "Tell us about yourself…", 3)}
+                </div>
+              </div>
+
+              {/* Social Links */}
+              <div className="card">
+                {sectionTitle("Social & Links", (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                ))}
+                <div className="profile-details">
+                  {profileField("LinkedIn URL", "linkedin", "url", "https://linkedin.com/in/...")}
+                  {profileField("GitHub URL", "github", "url", "https://github.com/...")}
+                  {profileField("Portfolio URL", "portfolio", "url", "https://yoursite.com")}
+                  {profileField("Twitter / X", "twitter", "text", "@handle")}
+                </div>
+              </div>
+
+              {/* Education */}
+              <div className="card">
+                {sectionTitle("Education", (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" />
+                  </svg>
+                ))}
+                <div className="profile-details">
+                  {profileField("Degree", "degree", "text", "B.Sc. Computer Science")}
+                  {profileField("Major / Field of Study", "major")}
+                  {profileField("University", "university")}
+                  {profileField("Graduation Year", "graduationYear", "number", "2026")}
+                  {profileField("GPA (optional)", "gpa", "text", "3.8 / 4.0")}
+                </div>
+              </div>
+
+              {/* Preferences */}
+              <div className="card">
+                {sectionTitle("Internship Preferences", (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                ))}
+                <div className="profile-details">
+                  {profileTextarea("Preferred Roles", "preferredRoles", "e.g. Software Engineer, Data Analyst", 2)}
+                  {profileTextarea("Preferred Locations", "preferredLocations", "e.g. Remote, New York, London", 2)}
+                  {profileSelect("Work Type", "workType", ["Remote", "On-site", "Hybrid"])}
+                  {profileField("Available From", "availableFrom", "date")}
+                  {profileSelect("Open to Relocate", "openToRelocate", ["Yes", "No", "Maybe"])}
+                  {profileField("Preferred Duration", "internshipDuration", "text", "3–6 months")}
+                </div>
+              </div>
+
+              {/* Extra */}
+              <div className="card">
+                {sectionTitle("Additional Info", (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                ))}
+                <div className="profile-details">
+                  {profileTextarea("Certifications", "certifications", "e.g. AWS Cloud Practitioner, Google Analytics…", 3)}
+                  {profileTextarea("Languages Spoken", "languages", "e.g. English (fluent), Hindi (native)", 2)}
+                  {profileTextarea("Achievements", "achievements", "Awards, honours, publications…", 3)}
+                  {profileTextarea("Hobbies & Interests", "hobbies", "e.g. Open-source, Photography, Chess", 2)}
+                </div>
+              </div>
+
+              {/* Save button */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", alignItems: "center" }}>
+                {profileSaved && (
+                  <span style={{ color: "#059669", fontWeight: 600, fontSize: "0.9rem" }}>✓ Profile saved!</span>
+                )}
+                <button className="btn btn-primary" onClick={handleProfileSave} style={{ padding: "0.75rem 2rem" }}>
+                  Save Profile
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================
+              SETTINGS TAB
+          ============================================================ */}
+          {activeTab === "settings" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <div className="card">
+                {sectionTitle("Resume History", (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                  </svg>
+                ))}
+                {resumes.length === 0 ? (
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>No resumes uploaded yet.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {resumes.map((r: any) => (
+                      <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.85rem 1rem", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: r.is_active ? "var(--primary-light)" : "white" }}>
+                        <div>
+                          <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{r.filename}</span>
+                          <span style={{ marginLeft: "0.75rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>{new Date(r.uploaded_at).toLocaleDateString()}</span>
+                          {r.is_active && <span style={{ marginLeft: "0.6rem", background: "#059669", color: "white", fontSize: "0.7rem", padding: "0.1rem 0.45rem", borderRadius: "50px" }}>Active</span>}
+                        </div>
+                        {!r.is_active && (
+                          <button className="btn btn-primary" style={{ padding: "0.4rem 0.9rem", fontSize: "0.82rem" }} onClick={() => activateResume(r.id)}>
+                            Set Active
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="card">
+                {sectionTitle("Account", (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                ))}
+                <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
+                  User ID: <strong>{userId}</strong>
+                </p>
+                <button
+                  className="btn"
+                  style={{ background: "#fee2e2", color: "#dc2626", fontWeight: 600 }}
+                  onClick={() => { localStorage.removeItem("user_id"); router.push("/"); }}
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

@@ -17,8 +17,9 @@ class Resume(Base):
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String)
     raw_text = Column(Text)
-    structured_data = Column(Text) # JSON string of extracted skills/edu/etc
+    structured_data = Column(Text)   # JSON string of extracted skills/edu/etc
+    match_result = Column(Text, nullable=True)  # JSON string of cached FAISS+LLM result
     is_active = Column(Boolean, default=False)
     user_id = Column(Integer, ForeignKey("users.id"))
-    
+
     owner = relationship("User", back_populates="resumes")

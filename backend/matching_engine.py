@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
@@ -36,7 +36,7 @@ class InternshipMatcher:
         self.fast_llm = ChatGroq(
             model=GROQ_MODEL,
             temperature=0.2,   # Low temperature for factual, grounded matching
-            max_tokens=1024,   # Enough for full rationale without truncation
+            max_tokens=3500,   # High limit because reasoning models use a lot of tokens for <think> blocks
         )
 
         # Gemini â€” multimodal + long-form for cover letter generation
@@ -123,7 +123,7 @@ class InternshipMatcher:
         embedding_query = self._build_embedding_query(candidate)
         candidate_summary = self.generate_candidate_summary(candidate)
         result = self.rag_chain.invoke({"embedding_query": embedding_query, "candidate_summary": candidate_summary})
-        return result
+        return self._strip_think(result)
 
     def get_raw_retrieval(self, candidate, k=3):
         """Get retrieved documents and scores without LLM evaluation."""
@@ -151,7 +151,7 @@ class InternshipMatcher:
         More reliable than a second FAISS search (which can return the wrong entry).
         """
         data_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            os.path.dirname(os.path.abspath(__file__)),
             "data_prep", "internship_data.json"
         )
         try:
@@ -172,10 +172,17 @@ class InternshipMatcher:
             print(f"Warning: Could not load internship data for context: {e}")
         return ""
 
+    def _strip_think(self, text: str) -> str:
+        import re
+        # Remove complete <think>...</think> blocks
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        # If there's an unclosed <think> tag (e.g., output was cut off), remove everything from <think> to the end
+        text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+        return text.strip()
+
     def generate_cover_letter(self, candidate, company, title):
         """
-        Uses Gemini â€” best for long-form creative writing with large context.
-        Gemini produces more natural, fluent cover letters than a speed-optimised model.
+        Uses Gemini for long-form creative writing with a fallback to Groq if rate-limited.
         """
         internship_context = self.get_internship_context(company, title)
         candidate_summary = self.generate_candidate_summary(candidate)
@@ -184,13 +191,19 @@ class InternshipMatcher:
             ("system",
              "You are an expert career coach. Write a professional, personalized cover letter "
              "for the candidate applying to the given internship. Highlight how their skills align "
-             "with the internship requirements. Use the candidate's actual name â€” do not use "
-             "placeholders like [Your Name]."),
+             "with the internship requirements. Use the candidate's actual name — do not use "
+             "placeholders like [Your Name]. Output ONLY the cover letter, no other text."),
             ("human", f"Internship Details:\n{internship_context}\n\nCandidate Resume:\n{candidate_summary}")
         ])
 
-        chain = prompt | self.creative_llm | StrOutputParser()
-        return chain.invoke({})
+        try:
+            print("Attempting to generate cover letter with Gemini...")
+            chain = prompt | self.creative_llm | StrOutputParser()
+            return chain.invoke({})
+        except Exception as e:
+            print(f"Gemini failed (likely rate limit): {e}. Falling back to Groq...")
+            chain = prompt | self.fast_llm | StrOutputParser()
+            return self._strip_think(chain.invoke({}))
 
     def generate_skill_gap(self, candidate, company, title):
         """
@@ -204,12 +217,12 @@ class InternshipMatcher:
             ("system",
              "You are an expert technical recruiter. Compare the candidate's resume with the "
              "internship details. Identify specifically what skills the candidate is missing or "
-             "needs to improve to be a perfect fit. Be concise, actionable, and format as bullet points."),
+             "needs to improve to be a perfect fit. Be concise, actionable, and format as bullet points. Output ONLY the bullet points."),
             ("human", f"Internship Details:\n{internship_context}\n\nCandidate Resume:\n{candidate_summary}")
         ])
 
         chain = prompt | self.fast_llm | StrOutputParser()
-        return chain.invoke({})
+        return self._strip_think(chain.invoke({}))
 
 if __name__ == "__main__":
     # Simple test if run directly

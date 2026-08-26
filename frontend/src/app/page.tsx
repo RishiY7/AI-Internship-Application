@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -24,7 +24,7 @@ export default function Home() {
   useEffect(() => {
     fetch("http://localhost:8000/api/opportunities")
       .then((r) => r.json())
-      .then((data) => setOpportunities(data))
+      .then((data) => setOpportunities(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
 

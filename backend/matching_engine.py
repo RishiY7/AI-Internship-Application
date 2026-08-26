@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
@@ -28,23 +28,23 @@ class InternshipMatcher:
             print(f"Error loading vector store from {vectorstore_path}: {e}")
             self.vectorstore = None
             
-        # Groq — ultra-fast inference for RAG evaluation and skill gap (structured, concise)
+        # Groq â€” ultra-fast inference for RAG evaluation and skill gap (structured, concise)
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             print("WARNING: GROQ_API_KEY is not set.")
 
-        self.llm = ChatGroq(
+        self.fast_llm = ChatGroq(
             model=GROQ_MODEL,
             temperature=0.2,   # Low temperature for factual, grounded matching
             max_tokens=1024,   # Enough for full rationale without truncation
         )
 
-        # Gemini — multimodal + long-form for cover letter generation
+        # Gemini â€” multimodal + long-form for cover letter generation
         gemini_api_key = os.getenv("GEMINI_API_KEY")
         if not gemini_api_key:
             print("WARNING: GEMINI_API_KEY is not set. Cover letter generation will fail.")
 
-        self.gemini_llm = ChatGoogleGenerativeAI(
+        self.creative_llm = ChatGoogleGenerativeAI(
             model=GEMINI_MODEL,
             google_api_key=gemini_api_key,
             temperature=0.4,   # Slightly creative for natural-sounding prose
@@ -86,14 +86,14 @@ class InternshipMatcher:
                 "candidate_summary": lambda x: x["candidate_summary"],
             }
             | match_prompt
-            | self.llm
+            | self.fast_llm
             | StrOutputParser()
         )
         
     def _build_embedding_query(self, candidate) -> str:
         """
         Skills/domain-only string used for FAISS vector search.
-        Name is intentionally excluded — it's noise for semantic skill matching.
+        Name is intentionally excluded â€” it's noise for semantic skill matching.
         """
         skills_str = ", ".join(candidate.get("skills", []))
         return (
@@ -105,7 +105,7 @@ class InternshipMatcher:
 
     def generate_candidate_summary(self, candidate) -> str:
         """
-        Full candidate summary including name — used in LLM prompts only (not embeddings).
+        Full candidate summary including name â€” used in LLM prompts only (not embeddings).
         """
         skills_str = ", ".join(candidate.get("skills", []))
         return (
@@ -135,13 +135,13 @@ class InternshipMatcher:
 
         results = []
         for doc, score in docs_and_scores:
-            # Convert L2 distance to a 0–100% relevance score (lower L2 = higher relevance)
+            # Convert L2 distance to a 0â€“100% relevance score (lower L2 = higher relevance)
             relevance_score = round(max(0.0, 1.0 - float(score) / 2.0) * 100, 1)
             results.append({
                 "company": doc.metadata["company"],
                 "title": doc.metadata["title"],
                 "l2_distance": float(score),       # Raw FAISS L2 distance (lower = better)
-                "relevance_score": relevance_score  # Human-readable 0–100% score
+                "relevance_score": relevance_score  # Human-readable 0â€“100% score
             })
         return results
 
@@ -174,31 +174,27 @@ class InternshipMatcher:
 
     def generate_cover_letter(self, candidate, company, title):
         """
-        Uses Gemini — best for long-form creative writing with large context.
+        Uses Gemini â€” best for long-form creative writing with large context.
         Gemini produces more natural, fluent cover letters than a speed-optimised model.
         """
         internship_context = self.get_internship_context(company, title)
         candidate_summary = self.generate_candidate_summary(candidate)
 
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if not gemini_api_key:
-            raise RuntimeError("GEMINI_API_KEY not set. Cannot generate cover letter.")
-
         prompt = ChatPromptTemplate.from_messages([
             ("system",
              "You are an expert career coach. Write a professional, personalized cover letter "
              "for the candidate applying to the given internship. Highlight how their skills align "
-             "with the internship requirements. Use the candidate's actual name — do not use "
+             "with the internship requirements. Use the candidate's actual name â€” do not use "
              "placeholders like [Your Name]."),
             ("human", f"Internship Details:\n{internship_context}\n\nCandidate Resume:\n{candidate_summary}")
         ])
 
-        chain = prompt | self.gemini_llm | StrOutputParser()
+        chain = prompt | self.creative_llm | StrOutputParser()
         return chain.invoke({})
 
     def generate_skill_gap(self, candidate, company, title):
         """
-        Uses Groq — best for fast, concise, structured bullet-point output.
+        Uses Groq â€” best for fast, concise, structured bullet-point output.
         Speed matters here since this is shown alongside the cover letter in real-time.
         """
         internship_context = self.get_internship_context(company, title)
@@ -212,7 +208,7 @@ class InternshipMatcher:
             ("human", f"Internship Details:\n{internship_context}\n\nCandidate Resume:\n{candidate_summary}")
         ])
 
-        chain = prompt | self.llm | StrOutputParser()
+        chain = prompt | self.fast_llm | StrOutputParser()
         return chain.invoke({})
 
 if __name__ == "__main__":
@@ -231,3 +227,5 @@ if __name__ == "__main__":
     result = matcher.match_candidate(test_candidate)
     print("\n--- Match Results ---")
     print(result)
+
+

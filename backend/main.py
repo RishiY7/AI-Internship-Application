@@ -1,7 +1,7 @@
 import os
 import json
 import base64
-import fitz  # PyMuPDF — still used for .txt fallback and raw text storage
+import pymupdf as fitz  # Replaced import fitz to resolve deprecation warning
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -64,62 +64,59 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
         text += page.get_text()
     return text
 
-def parse_resume_with_gemini(file_bytes: bytes, filename: str) -> dict:
+def parse_resume(file_bytes: bytes, filename: str, raw_text: str) -> dict:
     """
     Primary parser — uses Gemini's native multimodal PDF understanding.
-    Sends the raw PDF bytes directly; Gemini handles tables, columns, and
-    complex layouts without needing PyMuPDF text extraction first.
-    Falls back to Groq text-based extraction for .txt files.
+    Sends the raw PDF bytes directly.
+    Falls back to Groq text-based extraction if Gemini fails or for .txt files.
     """
     gemini_api_key = os.getenv("GEMINI_API_KEY")
 
     if filename.lower().endswith(".pdf") and gemini_api_key:
-        # --- Gemini native PDF path ---
-        llm = ChatGoogleGenerativeAI(
-            model=GEMINI_MODEL,
-            google_api_key=gemini_api_key,
-            temperature=0,
-        )
+        try:
+            # --- Gemini native PDF path ---
+            llm = ChatGoogleGenerativeAI(
+                model=GEMINI_MODEL,
+                google_api_key=gemini_api_key,
+                temperature=0,
+            )
 
-        pdf_b64 = base64.standard_b64encode(file_bytes).decode("utf-8")
+            pdf_b64 = base64.standard_b64encode(file_bytes).decode("utf-8")
+            extraction_prompt = (
+                "You are a resume parser. Extract the following fields from this resume PDF and "
+                "return ONLY a valid JSON object with these exact keys: "
+                "\"name\" (string), \"skills\" (list of strings), \"education\" (string), "
+                "\"experience\" (string), \"projects\" (string). "
+                "If a field is missing, use \"N/A\" for strings or [] for lists. "
+                "Do not include markdown fences or any other text — only the JSON object."
+            )
+            message = HumanMessage(content=[
+                {"type": "text", "text": extraction_prompt},
+                {"type": "media", "mime_type": "application/pdf", "data": pdf_b64},
+            ])
+            response = llm.invoke([message])
+            raw = response.content.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            parsed = json.loads(raw.strip())
+            return parsed
+        except Exception as e:
+            print(f"Gemini PDF parsing failed: {e}. Falling back to Groq.")
+            # Fall through to Groq text extraction
 
-        extraction_prompt = (
-            "You are a resume parser. Extract the following fields from this resume PDF and "
-            "return ONLY a valid JSON object with these exact keys: "
-            "\"name\" (string), \"skills\" (list of strings), \"education\" (string), "
-            "\"experience\" (string), \"projects\" (string). "
-            "If a field is missing, use \"N/A\" for strings or [] for lists. "
-            "Do not include markdown fences or any other text — only the JSON object."
-        )
-
-        message = HumanMessage(content=[
-            {"type": "text", "text": extraction_prompt},
-            {"type": "media", "mime_type": "application/pdf", "data": pdf_b64},
-        ])
-
-        response = llm.invoke([message])
-
-        # Strip any accidental markdown fences from the response
-        raw = response.content.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        parsed = json.loads(raw.strip())
-        return parsed
-
-    else:
-        # --- Groq fallback for .txt files ---
-        raw_text = file_bytes.decode("utf-8")
-        llm = ChatGroq(model=GROQ_MODEL, temperature=0)
-        structured_llm = llm.with_structured_output(CandidateExtracted)
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "Extract the candidate information from the following resume text. If a field is missing, put 'N/A'."),
-            ("human", "{text}")
-        ])
-        chain = prompt | structured_llm
-        result = chain.invoke({"text": raw_text})
-        return result.model_dump()
+    # --- Groq fallback (for .txt or if Gemini failed) ---
+    print("Using Groq text parser...")
+    llm = ChatGroq(model=GROQ_MODEL, temperature=0)
+    structured_llm = llm.with_structured_output(CandidateExtracted)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "Extract the candidate information from the following resume text. If a field is missing, put 'N/A'."),
+        ("human", "{text}")
+    ])
+    chain = prompt | structured_llm
+    result = chain.invoke({"text": raw_text})
+    return result.model_dump()
 
 # --- Endpoints ---
 @app.post("/api/register")
@@ -158,11 +155,11 @@ async def upload_resume(user_id: int, file: UploadFile = File(...), db: Session 
         raise HTTPException(status_code=400, detail=f"Could not read file: {e}")
 
     # Parse structured data:
-    #   PDFs  → Gemini (native multimodal PDF understanding, no text pre-processing)
-    #   TXTs  → Groq   (fast structured-output extraction from plain text)
+    #   PDFs  â†’ Gemini (native multimodal PDF understanding, no text pre-processing)
+    #   TXTs  â†’ Groq   (fast structured-output extraction from plain text)
     try:
-        extracted_data = parse_resume_with_gemini(content, file.filename)
-        parser_used = "Gemini (native PDF)" if is_pdf else "Groq (text fallback)"
+        extracted_data = parse_resume(content, file.filename, raw_text)
+        parser_used = "Gemini/Groq"
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Extraction failed: {e}")
 
@@ -250,7 +247,7 @@ def generate_insights(req: InsightRequest, db: Session = Depends(get_db)):
 
 @app.get("/api/opportunities")
 def get_opportunities():
-    """Return all internship listings from the dataset (public — no auth required)."""
+    """Return all internship listings from the dataset (public â€” no auth required)."""
     data_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "data_prep", "internship_data.json"
@@ -261,3 +258,4 @@ def get_opportunities():
         return internships
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not load opportunities: {e}")
+

@@ -2,12 +2,13 @@ import os
 import json
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from config import GROQ_MODEL, TOP_K_MATCHES
+from config import GROQ_MODEL, GEMINI_MODEL, TOP_K_MATCHES
 
 # Load Environment Variables (.env file containing GROQ_API_KEY)
 dotenv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
@@ -118,26 +119,48 @@ class InternshipMatcher:
         return ""
 
     def generate_cover_letter(self, candidate, company, title):
+        """
+        Uses Gemini — best for long-form creative writing with large context.
+        Gemini produces more natural, fluent cover letters than a speed-optimised model.
+        """
         internship_context = self.get_internship_context(company, title)
         candidate_summary = self.generate_candidate_summary(candidate)
-        
+
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        gemini_llm = ChatGoogleGenerativeAI(
+            model=GEMINI_MODEL,
+            google_api_key=gemini_api_key,
+            temperature=0.4,  # Slightly creative for natural-sounding writing
+        )
+
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are an expert career coach. Write a professional, personalized cover letter for the candidate applying to the given internship. Highlight how their skills align with the internship requirements. Do not include placeholders like [Your Name] if possible, use the candidate's actual name."),
+            ("system",
+             "You are an expert career coach. Write a professional, personalized cover letter "
+             "for the candidate applying to the given internship. Highlight how their skills align "
+             "with the internship requirements. Use the candidate's actual name — do not use "
+             "placeholders like [Your Name]."),
             ("human", f"Internship Details:\n{internship_context}\n\nCandidate Resume:\n{candidate_summary}")
         ])
-        
-        chain = prompt | self.llm | StrOutputParser()
+
+        chain = prompt | gemini_llm | StrOutputParser()
         return chain.invoke({})
 
     def generate_skill_gap(self, candidate, company, title):
+        """
+        Uses Groq — best for fast, concise, structured bullet-point output.
+        Speed matters here since this is shown alongside the cover letter in real-time.
+        """
         internship_context = self.get_internship_context(company, title)
         candidate_summary = self.generate_candidate_summary(candidate)
-        
+
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are an expert technical recruiter. Compare the candidate's resume with the internship details. Identify specifically what skills the candidate is missing or needs to improve to be a perfect fit. Be concise, actionable, and format as bullet points."),
+            ("system",
+             "You are an expert technical recruiter. Compare the candidate's resume with the "
+             "internship details. Identify specifically what skills the candidate is missing or "
+             "needs to improve to be a perfect fit. Be concise, actionable, and format as bullet points."),
             ("human", f"Internship Details:\n{internship_context}\n\nCandidate Resume:\n{candidate_summary}")
         ])
-        
+
         chain = prompt | self.llm | StrOutputParser()
         return chain.invoke({})
 

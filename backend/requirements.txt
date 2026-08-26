@@ -1,6 +1,7 @@
 langchain
 langchain-core
 langchain-groq
+langchain-google-genai
 langchain-community
 langchain-huggingface
 faiss-cpu
@@ -8,6 +9,7 @@ pydantic
 sentence-transformers
 python-dotenv
 pandas
+google-generativeai
 
 fastapi
 uvicorn

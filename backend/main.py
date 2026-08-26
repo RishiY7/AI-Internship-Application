@@ -1,6 +1,7 @@
 import os
 import json
-import fitz # PyMuPDF
+import base64
+import fitz  # PyMuPDF — still used for .txt fallback and raw text storage
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -12,8 +13,10 @@ from database import engine, Base, get_db
 import models
 from matching_engine import InternshipMatcher
 from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
-from config import GROQ_MODEL
+from langchain_core.messages import HumanMessage
+from config import GROQ_MODEL, GEMINI_MODEL
 
 # Create DB tables
 Base.metadata.create_all(bind=engine)
@@ -54,24 +57,69 @@ class InsightRequest(BaseModel):
 
 # --- Helpers ---
 def extract_text_from_pdf(file_bytes: bytes) -> str:
+    """Fallback: extract raw text using PyMuPDF (used for storing raw_text in DB)."""
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     text = ""
     for page in doc:
         text += page.get_text()
     return text
 
-def parse_resume_with_llm(raw_text: str) -> dict:
-    llm = ChatGroq(model=GROQ_MODEL, temperature=0)
-    structured_llm = llm.with_structured_output(CandidateExtracted)
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "Extract the candidate information from the following resume text. If a field is missing, put 'N/A'."),
-        ("human", "{text}")
-    ])
-    
-    chain = prompt | structured_llm
-    result = chain.invoke({"text": raw_text})
-    return result.model_dump()
+def parse_resume_with_gemini(file_bytes: bytes, filename: str) -> dict:
+    """
+    Primary parser — uses Gemini's native multimodal PDF understanding.
+    Sends the raw PDF bytes directly; Gemini handles tables, columns, and
+    complex layouts without needing PyMuPDF text extraction first.
+    Falls back to Groq text-based extraction for .txt files.
+    """
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+
+    if filename.lower().endswith(".pdf") and gemini_api_key:
+        # --- Gemini native PDF path ---
+        llm = ChatGoogleGenerativeAI(
+            model=GEMINI_MODEL,
+            google_api_key=gemini_api_key,
+            temperature=0,
+        )
+
+        pdf_b64 = base64.standard_b64encode(file_bytes).decode("utf-8")
+
+        extraction_prompt = (
+            "You are a resume parser. Extract the following fields from this resume PDF and "
+            "return ONLY a valid JSON object with these exact keys: "
+            "\"name\" (string), \"skills\" (list of strings), \"education\" (string), "
+            "\"experience\" (string), \"projects\" (string). "
+            "If a field is missing, use \"N/A\" for strings or [] for lists. "
+            "Do not include markdown fences or any other text — only the JSON object."
+        )
+
+        message = HumanMessage(content=[
+            {"type": "text", "text": extraction_prompt},
+            {"type": "media", "mime_type": "application/pdf", "data": pdf_b64},
+        ])
+
+        response = llm.invoke([message])
+
+        # Strip any accidental markdown fences from the response
+        raw = response.content.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        parsed = json.loads(raw.strip())
+        return parsed
+
+    else:
+        # --- Groq fallback for .txt files ---
+        raw_text = file_bytes.decode("utf-8")
+        llm = ChatGroq(model=GROQ_MODEL, temperature=0)
+        structured_llm = llm.with_structured_output(CandidateExtracted)
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "Extract the candidate information from the following resume text. If a field is missing, put 'N/A'."),
+            ("human", "{text}")
+        ])
+        chain = prompt | structured_llm
+        result = chain.invoke({"text": raw_text})
+        return result.model_dump()
 
 # --- Endpoints ---
 @app.post("/api/register")
@@ -99,22 +147,28 @@ async def upload_resume(user_id: int, file: UploadFile = File(...), db: Session 
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-        
+
     content = await file.read()
-    
+    is_pdf = file.filename.lower().endswith(".pdf")
+
+    # Always extract raw text for DB storage (used by the matching engine)
     try:
-        raw_text = extract_text_from_pdf(content) if file.filename.endswith(".pdf") else content.decode("utf-8")
+        raw_text = extract_text_from_pdf(content) if is_pdf else content.decode("utf-8")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not parse file: {e}")
-        
+        raise HTTPException(status_code=400, detail=f"Could not read file: {e}")
+
+    # Parse structured data:
+    #   PDFs  → Gemini (native multimodal PDF understanding, no text pre-processing)
+    #   TXTs  → Groq   (fast structured-output extraction from plain text)
     try:
-        extracted_data = parse_resume_with_llm(raw_text)
+        extracted_data = parse_resume_with_gemini(content, file.filename)
+        parser_used = "Gemini (native PDF)" if is_pdf else "Groq (text fallback)"
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Extraction failed: {e}")
-    
+
     # Mark all other resumes as inactive
     db.query(models.Resume).filter(models.Resume.user_id == user_id).update({"is_active": False})
-    
+
     # Save to DB
     resume = models.Resume(
         filename=file.filename,
@@ -125,8 +179,13 @@ async def upload_resume(user_id: int, file: UploadFile = File(...), db: Session 
     )
     db.add(resume)
     db.commit()
-    
-    return {"message": "Resume processed successfully", "extracted_data": extracted_data}
+
+    return {
+        "message": "Resume processed successfully",
+        "parser_used": parser_used,
+        "extracted_data": extracted_data,
+    }
+
 
 @app.get("/api/resumes/{user_id}")
 def get_resumes(user_id: int, db: Session = Depends(get_db)):

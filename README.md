@@ -8,7 +8,9 @@ This project is a Retrieval-Augmented Generation (RAG) pipeline that takes a can
 - **Backend:** FastAPI (Python). Handles authentication, PDF parsing, and exposing the RAG pipeline as REST APIs.
 - **Database:** PostgreSQL (SQLAlchemy). Stores user credentials securely (bcrypt) and keeps a record of uploaded resumes and extracted JSON data.
 - **Vector Store:** FAISS CPU. Stores embeddings of the internship opportunities generated via `sentence-transformers/all-MiniLM-L6-v2`.
-- **LLM/RAG:** LangChain & Groq. Evaluates the retrieved FAISS context and provides reasoning on candidate fit. Also used for extracting structured JSON from raw PDF resumes.
+- **LLM/RAG — Dual-Model Strategy:**
+  - **Gemini 1.5 Flash** (Google): Resume PDF parsing (native multimodal input — no text extraction needed) and cover letter generation (long-form creative writing).
+  - **Groq + Qwen 3.6-27B**: RAG match evaluation and skill gap analysis (ultra-fast inference, structured output).
 
 ## Project Structure
 
@@ -27,7 +29,8 @@ Ensure PostgreSQL is running locally. Create a database named `internship_db`.
 ### 2. Backend Setup
 Create a `.env` file in the `backend/` directory and add your Groq API Key:
 ```env
-GROQ_API_KEY=your_api_key_here
+GROQ_API_KEY=your_groq_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/internship_db
 ```
 Install dependencies and build the vector database:

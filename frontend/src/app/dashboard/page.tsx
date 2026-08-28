@@ -201,16 +201,16 @@ export default function Dashboard() {
   );
 
   const sectionTitle = (title: string, icon: React.ReactNode) => (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.25rem", paddingBottom: "0.6rem", borderBottom: "2px solid var(--primary-light)" }}>
-      <div style={{ color: "var(--primary)" }}>{icon}</div>
-      <h3 style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-main)" }}>{title}</h3>
+    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.25rem", paddingBottom: "0.65rem", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+      <div style={{ color: "#818cf8" }}>{icon}</div>
+      <h3 style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-main)", letterSpacing: "-0.1px" }}>{title}</h3>
     </div>
   );
 
   const scoreColor = (score: number) => {
-    if (score >= 75) return { fg: "#166534", bg: "#dcfce7", bar: "#22c55e" };
-    if (score >= 50) return { fg: "#854d0e", bg: "#fef9c3", bar: "#f59e0b" };
-    return { fg: "#7f1d1d", bg: "#fee2e2", bar: "#ef4444" };
+    if (score >= 75) return { fg: "#34d399", bg: "rgba(52,211,153,0.12)", bar: "#10b981", border: "rgba(52,211,153,0.25)" };
+    if (score >= 50) return { fg: "#fbbf24", bg: "rgba(251,191,36,0.12)", bar: "#f59e0b", border: "rgba(251,191,36,0.25)" };
+    return { fg: "#f87171", bg: "rgba(248,113,113,0.12)", bar: "#ef4444", border: "rgba(248,113,113,0.25)" };
   };
 
   const candidate = matches?.candidate;
@@ -220,10 +220,17 @@ export default function Dashboard() {
     <div className="portal-layout">
       <aside className="portal-sidebar">
         <div className="sidebar-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary-light)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-            <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
-          </svg>
+          <div style={{
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            width: "30px", height: "30px", borderRadius: "8px",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            boxShadow: "0 4px 12px rgba(99,102,241,0.4)",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+          </div>
           InternMatch
         </div>
         <nav className="sidebar-nav">
@@ -288,13 +295,13 @@ export default function Dashboard() {
               {candidate && (
                 <div className="stats-row">
                   {[
-                    { label: "Skills Detected", value: candidate.skills.length, color: "#4f46e5", bg: "#e0e7ff", icon: "🧠" },
-                    { label: "Matches Found", value: matches.raw_matches.length, color: "#0891b2", bg: "#cffafe", icon: "🎯" },
-                    { label: "Resumes Uploaded", value: resumes.length, color: "#7c3aed", bg: "#ede9fe", icon: "📄" },
-                    { label: "Best Match Score", value: Math.max(...matches.raw_matches.map((m: any) => m.relevance_score)) + "%", color: "#059669", bg: "#d1fae5", icon: "⭐" },
+                    { label: "Skills Detected", value: candidate.skills.length, color: "#818cf8", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.25)", icon: "🧠" },
+                    { label: "Matches Found", value: matches.raw_matches.length, color: "#38bdf8", bg: "rgba(56,189,248,0.1)", border: "rgba(56,189,248,0.2)", icon: "🎯" },
+                    { label: "Resumes Uploaded", value: resumes.length, color: "#c4b5fd", bg: "rgba(139,92,246,0.1)", border: "rgba(139,92,246,0.2)", icon: "📄" },
+                    { label: "Best Match Score", value: Math.max(...matches.raw_matches.map((m: any) => m.relevance_score)) + "%", color: "#34d399", bg: "rgba(52,211,153,0.1)", border: "rgba(52,211,153,0.2)", icon: "⭐" },
                   ].map((s, i) => (
-                    <div key={i} className="stat-card" style={{ borderTop: "3px solid " + s.color }}>
-                      <div className="stat-icon" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
+                    <div key={i} className="stat-card" style={{ borderTop: `2px solid ${s.border}` }}>
+                      <div className="stat-icon" style={{ background: s.bg, color: s.color, borderRadius: "8px" }}>{s.icon}</div>
                       <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
                       <div className="stat-label">{s.label}</div>
                     </div>
@@ -470,14 +477,14 @@ export default function Dashboard() {
 
                               {/* Score badge + progress bar */}
                               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.4rem", minWidth: "130px" }}>
-                                <span className="score-badge" style={{ background: sc.bg, color: sc.fg }}>
+                                <span className="score-badge" style={{ background: sc.bg, color: sc.fg, border: `1px solid ${(sc as any).border || "transparent"}` }}>
                                   {m.relevance_score}% Match
                                 </span>
                                 <div className="relevance-bar-track">
                                   <div className="relevance-bar-fill" style={{ width: m.relevance_score + "%", background: sc.bar }} />
                                 </div>
-                                <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                                  {m.relevance_score >= 75 ? "Strong fit" : m.relevance_score >= 50 ? "Good fit" : "Partial fit"}
+                                <span style={{ fontSize: "0.68rem", color: sc.fg, opacity: 0.75, fontWeight: 600 }}>
+                                  {m.relevance_score >= 75 ? "Strong fit ↑" : m.relevance_score >= 50 ? "Good fit" : "Partial fit"}
                                 </span>
                               </div>
                             </div>
@@ -507,14 +514,18 @@ export default function Dashboard() {
                               <div className="grid-2" style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px dashed var(--border)" }}>
                                 {insight?.skill_gap && (
                                   <div>
-                                    <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "#92400e" }}>Skill Gap Analysis</h3>
-                                    <div className="rationale" style={{ background: "#fef3c7", color: "#92400e" }}>{insight.skill_gap}</div>
+                                    <h3 style={{ fontSize: "0.88rem", fontWeight: 700, marginBottom: "0.5rem", color: "#fbbf24", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                                      📊 Skill Gap Analysis
+                                    </h3>
+                                    <div className="rationale" style={{ background: "rgba(245,158,11,0.07)", color: "#fcd34d", borderColor: "rgba(245,158,11,0.2)" }}>{insight.skill_gap}</div>
                                   </div>
                                 )}
                                 {insight?.cover_letter && (
                                   <div>
-                                    <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem" }}>AI Cover Letter Draft</h3>
-                                    <div className="rationale" style={{ background: "#f8fafc", color: "#1e293b", maxHeight: "320px", overflowY: "auto" }}>{insight.cover_letter}</div>
+                                    <h3 style={{ fontSize: "0.88rem", fontWeight: 700, marginBottom: "0.5rem", color: "#a5b4fc", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                                      ✉ AI Cover Letter Draft
+                                    </h3>
+                                    <div className="rationale" style={{ background: "rgba(99,102,241,0.06)", color: "#c7d2fe", borderColor: "rgba(99,102,241,0.2)", maxHeight: "320px", overflowY: "auto" }}>{insight.cover_letter}</div>
                                   </div>
                                 )}
                               </div>
@@ -591,23 +602,35 @@ export default function Dashboard() {
                       const isRemote = opp.location.toLowerCase().includes("remote");
                       const isHybrid = opp.location.toLowerCase().includes("hybrid");
                       const locColor = isRemote
-                        ? { bg: "#dcfce7", color: "#166534" }
+                        ? { bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.25)" }
                         : isHybrid
-                        ? { bg: "#fef9c3", color: "#854d0e" }
-                        : { bg: "#e0e7ff", color: "#3730a3" };
+                        ? { bg: "rgba(245,158,11,0.12)", color: "#fcd34d", border: "rgba(245,158,11,0.25)" }
+                        : { bg: "rgba(99,102,241,0.12)", color: "#a5b4fc", border: "rgba(99,102,241,0.25)" };
                       const skillList = opp.skills.split(",").map((s: string) => s.trim()).filter(Boolean);
                       return (
-                        <div key={i} style={{ background: "white", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem", boxShadow: "var(--shadow-sm)", transition: "box-shadow 0.2s" }}
-                          onMouseEnter={e => (e.currentTarget.style.boxShadow = "var(--shadow-md)")}
-                          onMouseLeave={e => (e.currentTarget.style.boxShadow = "var(--shadow-sm)")}
+                        <div key={i} style={{
+                          background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)",
+                          padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.7rem",
+                          transition: "all 0.25s ease", position: "relative", overflow: "hidden",
+                        }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.borderColor = "rgba(99,102,241,0.3)";
+                            e.currentTarget.style.boxShadow = "0 8px 30px rgba(0,0,0,0.4), 0 0 0 1px rgba(99,102,241,0.1)";
+                            e.currentTarget.style.transform = "translateY(-2px)";
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.borderColor = "var(--border)";
+                            e.currentTarget.style.boxShadow = "none";
+                            e.currentTarget.style.transform = "translateY(0)";
+                          }}
                         >
                           {/* Header */}
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
                             <div>
-                              <div style={{ fontWeight: 700, fontSize: "0.98rem", color: "var(--text-main)", lineHeight: 1.3 }}>{opp.title}</div>
-                              <div style={{ fontWeight: 600, color: "var(--primary)", fontSize: "0.85rem", marginTop: "0.2rem" }}>{opp.company}</div>
+                              <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-main)", lineHeight: 1.3, letterSpacing: "-0.1px" }}>{opp.title}</div>
+                              <div style={{ fontWeight: 600, color: "#818cf8", fontSize: "0.82rem", marginTop: "0.2rem" }}>{opp.company}</div>
                             </div>
-                            <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "0.2rem 0.6rem", borderRadius: "50px", background: locColor.bg, color: locColor.color, whiteSpace: "nowrap", flexShrink: 0 }}>
+                            <span style={{ fontSize: "0.67rem", fontWeight: 700, padding: "0.2rem 0.6rem", borderRadius: "50px", background: locColor.bg, color: locColor.color, border: `1px solid ${locColor.border}`, whiteSpace: "nowrap", flexShrink: 0 }}>
                               {isRemote ? "Remote" : isHybrid ? "Hybrid" : "On-site"}
                             </span>
                           </div>
@@ -627,7 +650,7 @@ export default function Dashboard() {
                           {/* Skills */}
                           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
                             {skillList.slice(0, 5).map((s: string, si: number) => (
-                              <span key={si} style={{ fontSize: "0.7rem", background: "var(--primary-light)", color: "var(--primary)", padding: "0.15rem 0.5rem", borderRadius: "4px", fontWeight: 600 }}>{s}</span>
+                              <span key={si} className="req-skill-tag">{s}</span>
                             ))}
                             {skillList.length > 5 && (
                               <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>+{skillList.length - 5} more</span>
@@ -641,14 +664,14 @@ export default function Dashboard() {
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{
-                                display: "inline-flex", alignItems: "center", gap: "0.35rem",
+                                display: "inline-flex", alignItems: "center", gap: "0.4rem",
                                 padding: "0.45rem 1.1rem", borderRadius: "var(--radius-sm)",
-                                background: "var(--primary)", color: "white",
-                                fontSize: "0.82rem", fontWeight: 700, textDecoration: "none",
-                                transition: "opacity 0.15s",
+                                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                                color: "white", fontSize: "0.8rem", fontWeight: 700, textDecoration: "none",
+                                transition: "all 0.2s", boxShadow: "0 4px 12px rgba(99,102,241,0.3)",
                               }}
-                              onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
-                              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(99,102,241,0.45)"; }}
+                              onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(99,102,241,0.3)"; }}
                             >
                               🚀 Apply Now
                             </a>

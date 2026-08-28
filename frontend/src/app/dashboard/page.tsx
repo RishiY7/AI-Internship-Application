@@ -15,6 +15,8 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loadingInsights, setLoadingInsights] = useState<string | null>(null);
+  const [loadingCoverLetter, setLoadingCoverLetter] = useState<string | null>(null);
+  const [loadingSkillGap, setLoadingSkillGap] = useState<string | null>(null);
   const [insightsData, setInsightsData] = useState<Record<string, any>>({});
   const [profileSaved, setProfileSaved] = useState(false);
   const [profile, setProfile] = useState({
@@ -123,17 +125,36 @@ export default function Dashboard() {
     } catch { console.log("Error activating resume"); }
   };
 
-  const handleGenerateInsights = async (company: string, title: string) => {
+  const handleGenerateCoverLetter = async (company: string, title: string) => {
     const key = company + "-" + title;
-    setLoadingInsights(key);
+    setLoadingCoverLetter(key);
     try {
       const res = await fetch("http://localhost:8000/api/generate_insights", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: parseInt(userId as string), company, title }),
       });
-      if (res.ok) { const json = await res.json(); setInsightsData(prev => ({ ...prev, [key]: json })); }
-    } catch { console.log("Error generating insights"); }
-    finally { setLoadingInsights(null); }
+      if (res.ok) {
+        const json = await res.json();
+        setInsightsData(prev => ({ ...prev, [key]: { ...prev[key], cover_letter: json.cover_letter, skill_gap: prev[key]?.skill_gap } }));
+      }
+    } catch { console.log("Error generating cover letter"); }
+    finally { setLoadingCoverLetter(null); }
+  };
+
+  const handleGenerateSkillGap = async (company: string, title: string) => {
+    const key = company + "-" + title;
+    setLoadingSkillGap(key);
+    try {
+      const res = await fetch("http://localhost:8000/api/generate_insights", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: parseInt(userId as string), company, title }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setInsightsData(prev => ({ ...prev, [key]: { ...prev[key], skill_gap: json.skill_gap, cover_letter: prev[key]?.cover_letter } }));
+      }
+    } catch { console.log("Error generating skill gap"); }
+    finally { setLoadingSkillGap(null); }
   };
 
   const handleProfileChange = (field: string, value: string) => {
@@ -408,7 +429,6 @@ export default function Dashboard() {
                       {matches.raw_matches.map((m: any, idx: number) => {
                         const key = m.company + "-" + m.title;
                         const insight = insightsData[key];
-                        const isLoading = loadingInsights === key;
                         const sc = scoreColor(m.relevance_score);
                         const reqSkills: string[] = m.required_skills
                           ? (Array.isArray(m.required_skills) ? m.required_skills : splitComma(m.required_skills))
@@ -462,24 +482,41 @@ export default function Dashboard() {
                               </div>
                             </div>
 
-                            {/* Generate insights button */}
-                            <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
-                              <button className="btn btn-primary" disabled={isLoading || !!insight} onClick={() => handleGenerateInsights(m.company, m.title)}>
-                                {isLoading ? "Generating…" : insight ? "✓ Insights Ready" : "Generate Cover Letter & Skill Gap"}
+                            {/* Two separate action buttons */}
+                            <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end", gap: "0.6rem", flexWrap: "wrap" }}>
+                              <button
+                                className="btn btn-primary"
+                                disabled={loadingCoverLetter === key || !!insight?.cover_letter}
+                                onClick={() => handleGenerateCoverLetter(m.company, m.title)}
+                                style={{ background: insight?.cover_letter ? "#059669" : undefined }}
+                              >
+                                {loadingCoverLetter === key ? "Generating…" : insight?.cover_letter ? "✓ Cover Letter Ready" : "✉ Cover Letter"}
+                              </button>
+                              <button
+                                className="btn btn-primary"
+                                disabled={loadingSkillGap === key || !!insight?.skill_gap}
+                                onClick={() => handleGenerateSkillGap(m.company, m.title)}
+                                style={{ background: insight?.skill_gap ? "#d97706" : undefined }}
+                              >
+                                {loadingSkillGap === key ? "Analyzing…" : insight?.skill_gap ? "✓ Skill Gap Ready" : "📊 Skill Gap Analysis"}
                               </button>
                             </div>
 
-                            {/* Insights panel */}
-                            {insight && (
+                            {/* Independent insight panels */}
+                            {(insight?.cover_letter || insight?.skill_gap) && (
                               <div className="grid-2" style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px dashed var(--border)" }}>
-                                <div>
-                                  <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "#92400e" }}>Skill Gap Analysis</h3>
-                                  <div className="rationale" style={{ background: "#fef3c7", color: "#92400e" }}>{insight.skill_gap}</div>
-                                </div>
-                                <div>
-                                  <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem" }}>AI Cover Letter Draft</h3>
-                                  <div className="rationale" style={{ background: "#f8fafc", color: "#1e293b", maxHeight: "320px", overflowY: "auto" }}>{insight.cover_letter}</div>
-                                </div>
+                                {insight?.skill_gap && (
+                                  <div>
+                                    <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "#92400e" }}>Skill Gap Analysis</h3>
+                                    <div className="rationale" style={{ background: "#fef3c7", color: "#92400e" }}>{insight.skill_gap}</div>
+                                  </div>
+                                )}
+                                {insight?.cover_letter && (
+                                  <div>
+                                    <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem" }}>AI Cover Letter Draft</h3>
+                                    <div className="rationale" style={{ background: "#f8fafc", color: "#1e293b", maxHeight: "320px", overflowY: "auto" }}>{insight.cover_letter}</div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -595,6 +632,26 @@ export default function Dashboard() {
                             {skillList.length > 5 && (
                               <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>+{skillList.length - 5} more</span>
                             )}
+                          </div>
+
+                          {/* Apply Button */}
+                          <div style={{ marginTop: "0.25rem", display: "flex", justifyContent: "flex-end" }}>
+                            <a
+                              href={opp.apply_url || `https://www.google.com/search?q=${encodeURIComponent(opp.title + " " + opp.company + " internship apply")}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: "0.35rem",
+                                padding: "0.45rem 1.1rem", borderRadius: "var(--radius-sm)",
+                                background: "var(--primary)", color: "white",
+                                fontSize: "0.82rem", fontWeight: 700, textDecoration: "none",
+                                transition: "opacity 0.15s",
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+                              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                            >
+                              🚀 Apply Now
+                            </a>
                           </div>
                         </div>
                       );

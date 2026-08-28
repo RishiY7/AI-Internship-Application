@@ -38,6 +38,9 @@ job_status: Dict[int, dict] = {}
 class UserCreate(BaseModel):
     email: str
     password: str
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    university: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: str

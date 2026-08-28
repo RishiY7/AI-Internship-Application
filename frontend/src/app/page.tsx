@@ -16,6 +16,9 @@ export default function Home() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [university, setUniversity] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -35,10 +38,13 @@ export default function Home() {
 
     const endpoint = isLogin ? "/api/login" : "/api/register";
     try {
+      const body = isLogin
+        ? { email, password }
+        : { email, password, full_name: fullName, phone, university };
       const res = await fetch(`http://localhost:8000${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
@@ -174,6 +180,49 @@ export default function Home() {
 
           <form onSubmit={handleSubmit}>
             {error && <div className="error-box">{error}</div>}
+
+            {/* Extra fields shown only on Sign Up */}
+            {!isLogin && (
+              <>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="full-name">Full Name</label>
+                  <input
+                    id="full-name"
+                    name="full_name"
+                    type="text"
+                    required
+                    className="form-input"
+                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="phone">Phone Number</label>
+                  <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    className="form-input"
+                    placeholder="+1 (555) 000-0000"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="university">University / College</label>
+                  <input
+                    id="university"
+                    name="university"
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. MIT, Stanford, IIT"
+                    value={university}
+                    onChange={(e) => setUniversity(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
 
             <div className="form-group">
               <label className="form-label" htmlFor="email-address">Email address</label>

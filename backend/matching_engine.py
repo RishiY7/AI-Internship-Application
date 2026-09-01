@@ -123,7 +123,7 @@ class InternshipMatcher:
         embedding_query = self._build_embedding_query(candidate)
         candidate_summary = self.generate_candidate_summary(candidate)
         result = self.rag_chain.invoke({"embedding_query": embedding_query, "candidate_summary": candidate_summary})
-        return self._strip_think(result)
+        return result.strip()
 
     def get_raw_retrieval(self, candidate, k=3):
         """Get retrieved documents and scores without LLM evaluation."""
@@ -172,13 +172,6 @@ class InternshipMatcher:
             print(f"Warning: Could not load internship data for context: {e}")
         return ""
 
-    def _strip_think(self, text: str) -> str:
-        import re
-        # Remove complete <think>...</think> blocks
-        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-        # If there's an unclosed <think> tag (e.g., output was cut off), remove everything from <think> to the end
-        text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
-        return text.strip()
 
     def generate_cover_letter(self, candidate, company, title):
         """
@@ -203,7 +196,7 @@ class InternshipMatcher:
         except Exception as e:
             print(f"Gemini failed (likely rate limit): {e}. Falling back to Groq...")
             chain = prompt | self.fast_llm | StrOutputParser()
-            return self._strip_think(chain.invoke({}))
+            return chain.invoke({}).strip()
 
     def generate_skill_gap(self, candidate, company, title):
         """
@@ -222,7 +215,8 @@ class InternshipMatcher:
         ])
 
         chain = prompt | self.fast_llm | StrOutputParser()
-        return self._strip_think(chain.invoke({}))
+        return chain.invoke({}).strip()
+
 
 if __name__ == "__main__":
     # Simple test if run directly

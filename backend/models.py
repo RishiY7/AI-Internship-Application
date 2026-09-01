@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
+from datetime import datetime
 
 class User(Base):
     __tablename__ = "users"
@@ -8,7 +9,10 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
-    
+    full_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    university = Column(String, nullable=True)
+
     resumes = relationship("Resume", back_populates="owner")
 
 class Resume(Base):
@@ -20,6 +24,7 @@ class Resume(Base):
     structured_data = Column(Text)   # JSON string of extracted skills/edu/etc
     match_result = Column(Text, nullable=True)  # JSON string of cached FAISS+LLM result
     is_active = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
     user_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User", back_populates="resumes")

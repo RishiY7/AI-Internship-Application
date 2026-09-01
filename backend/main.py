@@ -34,6 +34,14 @@ matcher = InternshipMatcher(vectorstore_path="vector_store/internships_faiss_ind
 # In-memory job status tracker: user_id -> {"status": "...", "step": "..."}
 job_status: Dict[int, dict] = {}
 
+def _require_owner(resource_user_id: int, requesting_user_id: int):
+    """Raises 403 if the requesting user does not own the resource.
+    Guards against horizontal privilege escalation (e.g. someone changing
+    their user_id in localStorage to access another user's resumes/matches).
+    """
+    if resource_user_id != requesting_user_id:
+        raise HTTPException(status_code=403, detail="Access denied: resource belongs to another user")
+
 # --- Pydantic Models ---
 class UserCreate(BaseModel):
     email: str
@@ -94,7 +102,13 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_password = pwd_context.hash(user.password)
-    new_user = models.User(email=user.email, hashed_password=hashed_password)
+    new_user = models.User(
+        email=user.email,
+        hashed_password=hashed_password,
+        full_name=user.full_name,
+        phone=user.phone,
+        university=user.university,
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -167,8 +181,10 @@ def _run_matching_background(user_id: int, candidate_data: dict):
         job_status[user_id] = {"status": "running", "step": "Searching vector store…"}
         raw_matches = matcher.get_raw_retrieval(candidate_data, k=3)
 
-        # Rationale disabled per user request
-        llm_rationale = ""
+        # Generate LLM rationale: uses the RAG chain (retriever → prompt → LLM) to explain
+        # which internship best fits the candidate and why, grounded only in the retrieved context.
+        job_status[user_id] = {"status": "running", "step": "Generating AI match rationale…"}
+        llm_rationale = matcher.match_candidate(candidate_data)
 
         # Store result so /api/matches/{user_id} can return it
         resume = db.query(models.Resume).filter(
@@ -210,11 +226,13 @@ def activate_resume(resume_id: int, user_id: int, db: Session = Depends(get_db))
     return {"message": "Resume activated"}
 
 @app.get("/api/matches/{user_id}")
-def get_matches(user_id: int, db: Session = Depends(get_db)):
+def get_matches(user_id: int, requesting_user_id: int, db: Session = Depends(get_db)):
+    _require_owner(user_id, requesting_user_id)
+
     # Try getting active resume first, fallback to most recent
     resume = db.query(models.Resume).filter(models.Resume.user_id == user_id, models.Resume.is_active == True).first()
     if not resume:
-        resume = db.query(models.Resume).filter(models.Resume.user_id == user_id).order_by(models.Resume.id.desc()).first()
+        resume = db.query(models.Resume).filter(models.Resume.user_id == user_id).order_by(models.Resume.created_at.desc()).first()
 
     if not resume:
         raise HTTPException(status_code=404, detail="No resume uploaded for this user")
@@ -232,6 +250,31 @@ def get_matches(user_id: int, db: Session = Depends(get_db)):
 
     # Still running — tell the frontend to keep polling
     raise HTTPException(status_code=202, detail="Matching in progress")
+
+
+@app.post("/api/retry_matching/{user_id}")
+def retry_matching(user_id: int, requesting_user_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Clears a failed/stuck match_result and re-triggers background matching.
+    Useful when the background task errored and the frontend is stuck on 202.
+    """
+    _require_owner(user_id, requesting_user_id)
+
+    resume = db.query(models.Resume).filter(
+        models.Resume.user_id == user_id, models.Resume.is_active == True
+    ).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="No active resume found")
+
+    candidate_data = json.loads(resume.structured_data)
+
+    # Clear stale result so polling detects a fresh run
+    resume.match_result = None
+    db.commit()
+
+    job_status[user_id] = {"status": "running", "step": "Retrying matching…"}
+    background_tasks.add_task(_run_matching_background, user_id, candidate_data)
+    return {"message": "Matching restarted"}
+
 
 @app.post("/api/generate_insights")
 def generate_insights(req: InsightRequest, db: Session = Depends(get_db)):

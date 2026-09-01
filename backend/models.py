@@ -28,3 +28,18 @@ class Resume(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User", back_populates="resumes")
+
+
+class ChatMessage(Base):
+    """Stores all chatbot conversation messages — satisfies §5 (storage) and §7 (isolation)."""
+    __tablename__ = "chat_messages"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    user_id       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    session_id    = Column(String, index=True, nullable=False)   # UUID — one per chat session
+    role          = Column(String, nullable=False)               # "user" or "assistant"
+    content       = Column(Text, nullable=False)
+    created_at    = Column(DateTime, default=datetime.utcnow)
+    # Bonus fields (§13)
+    source_chunks = Column(JSON, nullable=True)    # RAG chunks used for this response
+    feedback      = Column(String, nullable=True)  # "like" | "dislike" | None

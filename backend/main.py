@@ -1,5 +1,6 @@
 import os
 import json
+import uuid
 import pymupdf as fitz  # PyMuPDF for PDF text extraction
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,15 @@ from matching_engine import InternshipMatcher
 from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI  # kept for cover letter generation
 from config import GROQ_MODEL, GEMINI_MODEL
+
+# --- Chatbot: lazy-loaded singleton (loads FAISS index on first /api/chat call) ---
+_chatbot = None
+def get_chatbot():
+    global _chatbot
+    if _chatbot is None:
+        from chatbot.chat_engine import ProductChatbot
+        _chatbot = ProductChatbot()
+    return _chatbot
 
 # Create DB tables
 Base.metadata.create_all(bind=engine)
@@ -311,3 +321,100 @@ def get_opportunities():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not load opportunities: {e}")
 
+
+# =============================================================================
+# CHATBOT ENDPOINTS  (Phase 4 — §3, §5, §6, §7)
+# =============================================================================
+
+# --- Pydantic request/response models ---
+class ChatRequest(BaseModel):
+    user_id:    int
+    session_id: str
+    message:    str
+
+class NewSessionRequest(BaseModel):
+    user_id: int
+
+class FeedbackRequest(BaseModel):
+    message_id: int
+    feedback:   str   # "like" or "dislike"
+
+
+# --- POST /api/chat/session  (§7 — create a new isolated session) ---
+@app.post("/api/chat/session")
+def create_chat_session(req: NewSessionRequest, db: Session = Depends(get_db)):
+    """Create a new chat session for the user. Returns a fresh UUID session_id."""
+    user = db.query(models.User).filter(models.User.id == req.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"session_id": str(uuid.uuid4()), "user_id": req.user_id}
+
+
+# --- GET /api/chat/sessions/{user_id}  (§7 — list all sessions) ---
+@app.get("/api/chat/sessions/{user_id}")
+def list_chat_sessions(user_id: int, db: Session = Depends(get_db)):
+    """List all chat sessions for a user, newest first."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        chatbot  = get_chatbot()
+        sessions = chatbot.get_sessions_for_api(user_id, db)
+        return {"user_id": user_id, "sessions": sessions}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not retrieve sessions: {e}")
+
+
+# --- POST /api/chat  (§3 RAG + §4 memory + §6 full flow) ---
+@app.post("/api/chat")
+def chat(req: ChatRequest, db: Session = Depends(get_db)):
+    """
+    Main chat endpoint — implements the complete §6 memory flow:
+      retrieve history -> RAG -> combine -> LLM -> store -> return
+    """
+    # Validate user exists
+    user = db.query(models.User).filter(models.User.id == req.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Validate message
+    if not req.message.strip():
+        raise HTTPException(status_code=422, detail="Message cannot be empty")
+
+    try:
+        chatbot = get_chatbot()
+        result  = chatbot.chat(req.user_id, req.session_id, req.message.strip(), db)
+        return result
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat failed: {e}")
+
+
+# --- GET /api/chat/history/{user_id}/{session_id}  (§5 — retrieve stored conversations) ---
+@app.get("/api/chat/history/{user_id}/{session_id}")
+def get_chat_history(user_id: int, session_id: str, db: Session = Depends(get_db)):
+    """Retrieve full conversation history for a specific user + session."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        chatbot  = get_chatbot()
+        history  = chatbot.get_history_for_api(user_id, session_id, db)
+        return {"user_id": user_id, "session_id": session_id, "messages": history}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not retrieve history: {e}")
+
+
+# --- POST /api/chat/feedback  (§13 bonus — like/dislike) ---
+@app.post("/api/chat/feedback")
+def submit_feedback(req: FeedbackRequest, db: Session = Depends(get_db)):
+    """Store like/dislike feedback on an assistant message."""
+    if req.feedback not in ("like", "dislike"):
+        raise HTTPException(status_code=422, detail="Feedback must be 'like' or 'dislike'")
+    msg = db.query(models.ChatMessage).filter(models.ChatMessage.id == req.message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    msg.feedback = req.feedback
+    db.commit()
+    return {"message": "Feedback recorded", "message_id": req.message_id, "feedback": req.feedback}

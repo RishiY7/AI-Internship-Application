@@ -1,4 +1,4 @@
-﻿"""
+"""
 doc_indexer.py
 Phase 2.1 — Loads product_knowledge.md, chunks it, generates embeddings,
 and saves a FAISS index to backend/vector_store/product_faiss_index/.
@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_DIR, ".env"))
 
 from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 

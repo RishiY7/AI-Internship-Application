@@ -1,69 +1,197 @@
-# Full-Stack Internship Matching RAG System
+# InternMatch AI — Full-Stack Internship Matching Platform
 
-This project is a Retrieval-Augmented Generation (RAG) pipeline that takes a candidate's resume data and retrieves the most relevant internships from an Internship Vector Database based on semantic similarity. It has been built as a modern Full-Stack web application.
+An AI-powered internship matching platform with a **Product Assistant Chatbot**. Uses RAG (Retrieval-Augmented Generation) to semantically match candidates to internships, generate personalised cover letters, identify skill gaps, and answer questions about the product using its own documentation.
+
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Resume Upload & Parsing** | Upload a PDF resume → AI extracts name, skills, education, experience, projects |
+| **AI Internship Matching** | FAISS vector similarity search + LLM rationale for top 3 matched internships |
+| **Cover Letter Generator** | Personalised cover letter per listing using Gemini (Groq fallback) |
+| **Skill Gap Analysis** | Bullet-point list of skills you're missing for a target role |
+| **💬 Product Assistant Chatbot** | RAG chatbot that answers questions about InternMatch AI using its own documentation, with multi-turn conversation memory per user and session |
+
+---
 
 ## Architecture & Tech Stack
 
-- **Frontend:** Next.js (React), Tailwind CSS. Provides a UI for user registration, resume PDF uploading, and visualizing RAG match results.
-- **Backend:** FastAPI (Python). Handles authentication, PDF parsing, and exposing the RAG pipeline as REST APIs.
-- **Database:** PostgreSQL (SQLAlchemy). Stores user credentials securely (bcrypt) and keeps a record of uploaded resumes and extracted JSON data.
-- **Vector Store:** FAISS CPU. Stores embeddings of the internship opportunities generated via `sentence-transformers/all-MiniLM-L6-v2`.
-- **LLM/RAG — Dual-Model Strategy:**
-  - **Gemini 1.5 Flash** (Google): Resume PDF parsing (native multimodal input — no text extraction needed) and cover letter generation (long-form creative writing).
-  - **Groq + Qwen 3.6-27B**: RAG match evaluation and skill gap analysis (ultra-fast inference, structured output).
+### Core Stack
+
+| Layer | Technology | Why chosen |
+|-------|-----------|------------|
+| Frontend | Next.js (React) + TypeScript | SSR, component model, already built |
+| Backend | FastAPI (Python) | Async, fast, auto OpenAPI docs |
+| Database | PostgreSQL + SQLAlchemy | Relational, multi-user, conversation history storage |
+| Vector Store | FAISS (CPU) | Local, no external service, already used for matching |
+| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` | Free, local, high-quality 384-dim vectors |
+
+### LLM Strategy
+
+| Model | Used for | Why |
+|-------|---------|-----|
+| **Groq `groq/compound-mini`** | Resume parsing, internship matching, skill gap, **Product Assistant Chatbot** | Ultra-low latency on Groq LPU; free tier; already integrated |
+| **Google Gemini `gemini-2.5-flash`** | Cover letter generation (with Groq fallback) | Superior long-form creative writing quality |
+
+> **Note on LLM choice (§10):** The assignment recommends OpenAI. This project uses **Groq** instead because: (1) it is already integrated, (2) free tier with no billing required, (3) ~800 tokens/second on Groq LPU hardware — significantly faster for real-time chat. This is an explicitly allowed alternative per the assignment.
+
+---
 
 ## Project Structure
 
-- `backend/data_prep/`: Contains the JSON datasets for internships (`internship_data.json`) and synthetic candidate profiles (`resumes.json`).
-- `backend/vector_store/`: Contains `indexer.py` which reads the internship data, creates embeddings, and saves the vector store.
-- `backend/matching_engine.py`: The core semantic matching and RAG prompt logic. 
-- `backend/main.py`: FastAPI server handling routes and database sessions.
-- `backend/tests/run_tests.py`: Batch test suite matching 10 distinct synthetic candidates representing various archetypes (Skill-based, Education-based, AI/ML, etc.) as requested by the assignment.
-- `frontend/`: Next.js web application.
+```
+backend/
+├── chatbot/
+│   ├── __init__.py
+│   ├── product_knowledge.md    ← §2 Product Documentation (RAG knowledge base)
+│   ├── doc_indexer.py          ← §3 RAG: loads, chunks, embeds, saves FAISS index
+│   └── chat_engine.py          ← §3+§4+§6: ProductChatbot class (RAG + memory flow)
+├── vector_store/
+│   ├── internships_faiss_index/  ← FAISS index for job matching
+│   └── product_faiss_index/      ← FAISS index for chatbot RAG (65 chunks)
+├── config.py                   ← LLM model constants
+├── database.py                 ← PostgreSQL connection
+├── models.py                   ← User, Resume, ChatMessage (SQLAlchemy models)
+├── matching_engine.py          ← Internship matching RAG logic
+├── migrate.py                  ← DB migrations
+├── main.py                     ← FastAPI app + all API endpoints
+├── requirements.txt
+└── tests/run_tests.py
+
+frontend/src/app/
+├── page.tsx                    ← Landing/login page
+└── dashboard/
+    └── page.tsx                ← Full dashboard (Overview, Opportunities, Profile, Settings, 💬 Chat)
+```
+
+---
+
+## Product Assistant Chatbot — How It Works
+
+Implements the complete RAG + memory pipeline:
+
+```
+User Question
+     ↓
+FAISS search over product_knowledge.md (top 3 chunks)
+     +
+PostgreSQL: last 10 messages for this user + session
+     ↓
+[System Prompt] + [Conversation History] + [RAG Context] + [Question]
+     ↓
+Groq LLM (groq/compound-mini)
+     ↓
+Response → stored in chat_messages table (user_id, session_id, role, content, timestamp)
+```
+
+**Key properties:**
+- Conversation memory: resolves pronouns and follow-up questions across turns
+- Per-user, per-session isolation: no cross-user data leakage
+- Source citations: each response includes which document chunks were retrieved
+- Like/Dislike feedback stored per message (bonus)
+
+### Chatbot API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/chat/session` | Create a new chat session → returns UUID |
+| `GET` | `/api/chat/sessions/{user_id}` | List all sessions for a user |
+| `POST` | `/api/chat` | Send message → RAG + memory → LLM response |
+| `GET` | `/api/chat/history/{user_id}/{session_id}` | Full conversation history |
+| `POST` | `/api/chat/feedback` | Submit like/dislike on a message |
+
+### Database Schema — `chat_messages`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `user_id` | Integer FK | Links to users table |
+| `session_id` | String (UUID) | One UUID per chat session |
+| `role` | String | `"user"` or `"assistant"` |
+| `content` | Text | Message content |
+| `created_at` | DateTime | Timestamp |
+| `source_chunks` | JSON | RAG chunks used for this response |
+| `feedback` | String | `"like"` / `"dislike"` / null |
+
+---
 
 ## Setup Instructions
 
-### 1. Database Setup
-Ensure PostgreSQL is running locally. Create a database named `internship_db`.
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- PostgreSQL 14+
 
-### 2. Backend Setup
-Create a `.env` file in the `backend/` directory and add your Groq API Key:
+### 1. Environment Variables
+Create a `.env` file in the **project root** (same level as `backend/` and `frontend/`):
 ```env
 GROQ_API_KEY=your_groq_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/internship_db
+DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/InternshipApp
 ```
-Install dependencies and build the vector database:
+
+### 2. Backend Setup
 ```bash
+# From project root — activate virtual environment
+venv\Scripts\activate          # Windows
+source venv/bin/activate       # Mac/Linux
+
+# Install dependencies
+pip install -r backend/requirements.txt
+
+# Build internship FAISS index (if not already built)
+python backend/vector_store/indexer.py
+
+# Build product chatbot FAISS index (run once, or after updating product_knowledge.md)
+python backend/chatbot/doc_indexer.py
+
+# Start backend server (run from backend/ directory)
 cd backend
-pip install -r requirements.txt
-python vector_store/indexer.py
-```
-Start the API Server:
-```bash
-uvicorn main:app --reload
+uvicorn main:app --reload --port 8000
 ```
 
 ### 3. Frontend Setup
-In a separate terminal, navigate to the frontend directory:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Navigate to `http://localhost:3000` to register, upload a resume, and test the RAG matching engine.
 
-## Testing (Assignment Requirement)
-To verify the system against the 5-10 distinct candidate archetypes specified in the assignment without using the UI, you can run the batch test script:
+### 4. Access
+- **Application:** http://localhost:3000
+- **API:** http://localhost:8000
+- **API Docs (Swagger):** http://localhost:8000/docs
+
+---
+
+## Testing
+
+To verify RAG matching against 10 distinct synthetic candidate archetypes:
 ```bash
 cd backend
 python tests/run_tests.py
 ```
 
+To test the chatbot API directly:
+```bash
+# Create a session
+curl -X POST http://localhost:8000/api/chat/session \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": 1}'
+
+# Send a message
+curl -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": 1, "session_id": "<session_id>", "message": "What is InternMatch AI?"}'
+```
+
+---
+
 ## Limitations & Future Work
 
-- **Small internship dataset:** The vector store currently contains only 10 internship entries — sufficient to demonstrate the RAG pipeline but not representative of a production system. Scaling to thousands of listings would improve match diversity and accuracy.
-- **No JWT auth:** User sessions are stored via `user_id` in `localStorage`. A production deployment would replace this with JWT tokens or HTTP-only cookies.
-- **Normalised relevance score:** Raw FAISS L2 distances are converted to a 0–100% relevance score using `max(0, 1 - L2/2) * 100`. This is an approximation; calibration against real user data would improve reliability.
-- **Single embedding model:** Only one embedding model (`all-MiniLM-L6-v2`) is used. A fine-tuned domain-specific model could improve matching quality for technical roles.
-
+- **Small internship dataset:** 10 internship entries — sufficient for demonstration but not production scale.
+- **No JWT auth:** Sessions use `user_id` in `localStorage`. Production would use JWT or HTTP-only cookies.
+- **Relevance score approximation:** FAISS L2 distance converted via `max(0, 1 - L2/2) * 100`. Calibration against real data would improve accuracy.
+- **Single embedding model:** `all-MiniLM-L6-v2` is general-purpose. A domain-specific model could improve matching quality for technical roles.
+- **Groq model:** `groq/compound-mini` is used as `llama-3.1-8b-instant` was deprecated on this account. Can be updated in `backend/config.py` when a preferred model becomes available.

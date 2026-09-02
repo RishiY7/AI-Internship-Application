@@ -19,6 +19,13 @@ export default function Dashboard() {
   const [loadingSkillGap, setLoadingSkillGap] = useState<string | null>(null);
   const [insightsData, setInsightsData] = useState<Record<string, any>>({});
   const [profileSaved, setProfileSaved] = useState(false);
+  // --- Chat state ---
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null);
+  const [chatSessions, setChatSessions] = useState<any[]>([]);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
   const [profile, setProfile] = useState({
     fullName: "", phone: "", location: "", dateOfBirth: "", gender: "", bio: "",
     linkedin: "", github: "", portfolio: "", twitter: "",
@@ -37,9 +44,15 @@ export default function Dashboard() {
     fetchMatches();
     fetchResumes();
     fetchOpportunities();
+    fetchChatSessions();
     const saved = localStorage.getItem("profile_" + userId);
     if (saved) setProfile(JSON.parse(saved));
   }, [userId, router]);
+
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   const fetchOpportunities = async () => {
     try {
@@ -63,6 +76,70 @@ export default function Dashboard() {
       const res = await fetch("http://localhost:8000/api/resumes/" + userId);
       if (res.ok) setResumes(await res.json());
     } catch { console.log("Failed to fetch resumes"); }
+  };
+
+  // --- Chat helpers ---
+  const fetchChatSessions = async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/chat/sessions/${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setChatSessions(data.sessions || []);
+      }
+    } catch { console.log("Failed to fetch chat sessions"); }
+  };
+
+  const createNewSession = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/chat/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: Number(userId) }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChatSessionId(data.session_id);
+        setChatMessages([]);
+        await fetchChatSessions();
+      }
+    } catch { console.log("Failed to create session"); }
+  };
+
+  const loadSessionHistory = async (sessionId: string) => {
+    setChatSessionId(sessionId);
+    try {
+      const res = await fetch(`http://localhost:8000/api/chat/history/${userId}/${sessionId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setChatMessages(data.messages || []);
+      }
+    } catch { console.log("Failed to load history"); }
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || chatLoading || !chatSessionId) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", content: userMsg, id: Date.now() }]);
+    setChatLoading(true);
+    try {
+      const res = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: Number(userId), session_id: chatSessionId, message: userMsg }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChatMessages(prev => [...prev, { role: "assistant", content: data.response, source_chunks: data.source_chunks, id: Date.now() + 1 }]);
+      } else {
+        setChatMessages(prev => [...prev, { role: "assistant", content: "Sorry, something went wrong. Please try again.", id: Date.now() + 1 }]);
+      }
+    } catch {
+      setChatMessages(prev => [...prev, { role: "assistant", content: "Could not reach the server. Please check the backend.", id: Date.now() + 1 }]);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   /** Poll /api/analysis_status/{userId} until done, then load matches */
@@ -258,6 +335,12 @@ export default function Dashboard() {
             </svg>
             Settings
           </button>
+          <button className={"nav-item " + (activeTab === "chat" ? "active" : "")} onClick={() => { setActiveTab("chat"); fetchChatSessions(); }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Product Assistant
+          </button>
           <div style={{ flex: 1 }} />
           <button className="nav-item" style={{ color: "#ef4444" }} onClick={() => { localStorage.removeItem("user_id"); router.push("/"); }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -275,6 +358,7 @@ export default function Dashboard() {
             {activeTab === "opportunities" && "Browse Opportunities"}
             {activeTab === "profile" && "My Profile"}
             {activeTab === "settings" && "Settings"}
+            {activeTab === "chat" && "💬 Product Assistant"}
           </div>
           <div className="header-profile">
             <div className="avatar">{displayName.charAt(0).toUpperCase()}</div>
@@ -917,6 +1001,157 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          {/* ============================================================
+              CHAT TAB — Product Assistant
+          ============================================================ */}
+          {activeTab === "chat" && (
+            <div style={{ display: "flex", gap: "1.5rem", height: "calc(100vh - 130px)", overflow: "hidden" }}>
+
+              {/* Session sidebar */}
+              <div style={{ width: "220px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <button
+                  className="btn"
+                  style={{ width: "100%", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff", fontWeight: 600, marginBottom: "0.5rem" }}
+                  onClick={createNewSession}
+                >
+                  + New Chat
+                </button>
+                <div style={{ overflowY: "auto", flex: 1 }}>
+                  {chatSessions.length === 0 && (
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", textAlign: "center", marginTop: "1rem" }}>
+                      No sessions yet. Start a new chat!
+                    </p>
+                  )}
+                  {chatSessions.map((s: any) => (
+                    <button
+                      key={s.session_id}
+                      onClick={() => loadSessionHistory(s.session_id)}
+                      style={{
+                        width: "100%", textAlign: "left", padding: "0.55rem 0.75rem",
+                        borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.8rem",
+                        background: chatSessionId === s.session_id ? "rgba(99,102,241,0.15)" : "transparent",
+                        color: chatSessionId === s.session_id ? "#6366f1" : "var(--text-main)",
+                        fontWeight: chatSessionId === s.session_id ? 600 : 400,
+                        marginBottom: "2px",
+                      }}
+                    >
+                      💬 {s.session_id.slice(0, 8)}…
+                      <br />
+                      <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                        {s.created_at ? new Date(s.created_at).toLocaleDateString() : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Main chat panel */}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                {!chatSessionId ? (
+                  /* Empty state */
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", color: "var(--text-muted)" }}>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <p style={{ fontSize: "1rem", fontWeight: 500 }}>Start a new chat or pick a session</p>
+                    <p style={{ fontSize: "0.85rem" }}>Ask me anything about InternMatch AI!</p>
+                    <button className="btn" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff", fontWeight: 600 }} onClick={createNewSession}>
+                      Start Chatting
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Message thread */}
+                    <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "1rem", padding: "0.5rem 0.25rem 0.5rem 0" }}>
+                      {chatMessages.length === 0 && (
+                        <div style={{ textAlign: "center", color: "var(--text-muted)", marginTop: "2rem", fontSize: "0.9rem" }}>
+                          No messages yet. Ask something below!
+                        </div>
+                      )}
+                      {chatMessages.map((msg: any, idx: number) => (
+                        <div key={msg.id ?? idx} style={{ display: "flex", flexDirection: msg.role === "user" ? "row-reverse" : "row", gap: "0.75rem", alignItems: "flex-start" }}>
+                          {/* Avatar */}
+                          <div style={{
+                            width: "32px", height: "32px", borderRadius: "50%", flexShrink: 0,
+                            background: msg.role === "user" ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: "0.75rem", color: "#fff", fontWeight: 700,
+                          }}>
+                            {msg.role === "user" ? "U" : "AI"}
+                          </div>
+                          {/* Bubble */}
+                          <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", gap: "0.35rem", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                            <div style={{
+                              padding: "0.75rem 1rem", borderRadius: msg.role === "user" ? "16px 4px 16px 16px" : "4px 16px 16px 16px",
+                              background: msg.role === "user" ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "var(--card-bg, rgba(255,255,255,0.07))",
+                              color: msg.role === "user" ? "#fff" : "var(--text-main)",
+                              fontSize: "0.9rem", lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                              border: msg.role === "assistant" ? "1px solid rgba(255,255,255,0.08)" : "none",
+                            }}>
+                              {msg.content}
+                            </div>
+                            {/* Source citations */}
+                            {msg.role === "assistant" && msg.source_chunks && msg.source_chunks.length > 0 && (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                                {msg.source_chunks.map((c: any, ci: number) => (
+                                  <span key={ci} style={{
+                                    fontSize: "0.7rem", padding: "0.15rem 0.5rem", borderRadius: "99px",
+                                    background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.2)",
+                                  }}>
+                                    📄 Source {ci + 1}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {/* Typing indicator */}
+                      {chatLoading && (
+                        <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+                          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", color: "#fff", fontWeight: 700 }}>AI</div>
+                          <div style={{ padding: "0.75rem 1rem", borderRadius: "4px 16px 16px 16px", background: "var(--card-bg, rgba(255,255,255,0.07))", border: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: "4px", alignItems: "center" }}>
+                            {[0, 1, 2].map(i => (
+                              <span key={i} style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#6366f1", display: "inline-block", animation: `bounce 1.2s ${i * 0.2}s infinite` }} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div ref={chatBottomRef} />
+                    </div>
+
+                    {/* Input bar */}
+                    <div style={{ paddingTop: "1rem", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", gap: "0.75rem", alignItems: "flex-end" }}>
+                      <textarea
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                        placeholder="Ask anything about InternMatch AI… (Enter to send, Shift+Enter for new line)"
+                        rows={2}
+                        style={{
+                          flex: 1, resize: "none", padding: "0.75rem 1rem", borderRadius: "12px",
+                          border: "1px solid rgba(99,102,241,0.3)", background: "var(--card-bg, rgba(255,255,255,0.06))",
+                          color: "var(--text-main)", fontSize: "0.9rem", lineHeight: 1.5, outline: "none",
+                          fontFamily: "inherit",
+                        }}
+                        disabled={chatLoading}
+                      />
+                      <button
+                        onClick={sendChatMessage}
+                        disabled={chatLoading || !chatInput.trim()}
+                        className="btn"
+                        style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff", fontWeight: 600, padding: "0.75rem 1.25rem", flexShrink: 0, opacity: (chatLoading || !chatInput.trim()) ? 0.5 : 1 }}
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
         </div>
       </main>
     </div>

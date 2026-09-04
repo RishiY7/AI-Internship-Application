@@ -296,6 +296,18 @@ def generate_insights(req: InsightRequest, db: Session = Depends(get_db)):
         
     candidate_data = json.loads(resume.structured_data)
     
+    # Inject user profile data into candidate data for better cover letters
+    user = db.query(models.User).filter(models.User.id == req.user_id).first()
+    if user:
+        if user.full_name:
+            candidate_data["name"] = user.full_name
+        if user.email:
+            candidate_data["email"] = user.email
+        if user.phone:
+            candidate_data["phone"] = user.phone
+        if user.university:
+            candidate_data["university"] = user.university
+    
     try:
         cover_letter = matcher.generate_cover_letter(candidate_data, req.company, req.title)
         skill_gap = matcher.generate_skill_gap(candidate_data, req.company, req.title)

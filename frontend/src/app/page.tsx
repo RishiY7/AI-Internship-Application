@@ -1,7 +1,6 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Layers, FileText, Target, Hexagon, Mail, Lock } from "lucide-react";
 
 interface Opportunity {
   title: string;
@@ -88,31 +87,19 @@ export default function Home() {
 
   const features = [
     {
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-        </svg>
-      ),
+      icon: <Layers size={16} strokeWidth={2.5} />,
       label: "Semantic Matching",
       sub: "FAISS vector search aligns your skills to open roles.",
       color: "#818cf8",
     },
     {
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-        </svg>
-      ),
+      icon: <FileText size={16} strokeWidth={2.5} />,
       label: "AI Cover Letters",
       sub: "Tailored drafts generated in seconds with Gemini.",
       color: "#34d399",
     },
     {
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-        </svg>
-      ),
+      icon: <Target size={16} strokeWidth={2.5} />,
       label: "Skill Gap Analysis",
       sub: "Know exactly what to learn to land the job.",
       color: "#f472b6",
@@ -120,12 +107,13 @@ export default function Home() {
   ];
 
   return (
-    <main className="auth-layout">
-      {/* ── LEFT PANEL ──────────────────────────────────── */}
-      <div
-        className="auth-sidebar"
-        style={{ position: "relative", overflow: "hidden", display: "flex", flexDirection: "column" }}
-      >
+    <main className="auth-layout" style={{ flexDirection: "column" }}>
+      <div style={{ display: "flex", flex: "1 0 auto", width: "100%", minHeight: "100vh" }}>
+        {/* ── LEFT PANEL ──────────────────────────────────── */}
+        <div
+          className="auth-sidebar"
+          style={{ position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", flex: 1.1 }}
+        >
         {/* Decorative glows */}
         <div style={{ position: "absolute", top: "-15%", left: "-15%", width: "380px", height: "380px", background: "radial-gradient(circle, rgba(99,102,241,0.22) 0%, transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
         <div style={{ position: "absolute", bottom: "-20%", right: "-10%", width: "480px", height: "480px", background: "radial-gradient(circle, rgba(6,182,212,0.14) 0%, transparent 70%)", borderRadius: "50%", pointerEvents: "none" }} />
@@ -147,11 +135,7 @@ export default function Home() {
               display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0, boxShadow: "0 8px 24px rgba(99,102,241,0.4)",
             }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                <line x1="12" y1="22.08" x2="12" y2="12" />
-              </svg>
+              <Hexagon size={22} color="white" strokeWidth={2.5} />
             </div>
             <span style={{
               fontSize: "1.3rem", fontWeight: 800, letterSpacing: "-0.3px",
@@ -213,66 +197,7 @@ export default function Home() {
                 </div>
               </div>
             ))}
-          </div>
-
-          {/* Live opportunities */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.75rem" }}>
-              <span style={{ position: "relative", display: "inline-flex", width: "10px", height: "10px" }}>
-                <span className="opp-ping" />
-                <span style={{ position: "relative", display: "inline-flex", borderRadius: "50%", width: "10px", height: "10px", background: "#22c55e" }} />
-              </span>
-              <span style={{ fontWeight: 700, fontSize: "0.72rem", letterSpacing: "0.8px", textTransform: "uppercase", color: "rgba(200,210,255,0.6)" }}>
-                Live Listings — {opportunities.length} Open
-              </span>
-            </div>
-
-            <div className="opp-scroll">
-              {opportunities.length === 0 ? (
-                <div style={{ color: "rgba(160,160,200,0.5)", fontSize: "0.85rem", textAlign: "center", paddingTop: "1.5rem" }}>
-                  Loading opportunities…
-                </div>
-              ) : (
-                opportunities.map((opp, i) => {
-                  const lc = locationStyle(opp.location);
-                  const skillList = opp.skills.split(",");
-                  return (
-                    <div key={i} className="opp-card">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#e0e7ff", lineHeight: 1.3 }}>{opp.title}</div>
-                          <div style={{ fontSize: "0.76rem", color: "rgba(160,170,240,0.7)", marginTop: "0.1rem" }}>{opp.company}</div>
-                        </div>
-                        <span style={{
-                          fontSize: "0.66rem", fontWeight: 700, padding: "0.18rem 0.55rem",
-                          borderRadius: "50px", background: lc.bg, color: lc.color,
-                          border: `1px solid ${lc.border}`, whiteSpace: "nowrap", flexShrink: 0,
-                        }}>
-                          {opp.location.split(" - ")[0]}
-                        </span>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.35rem", marginTop: "0.45rem", flexWrap: "wrap", alignItems: "center" }}>
-                        <span style={{ fontSize: "0.7rem", color: "rgba(130,140,200,0.6)" }}>⏱ {opp.duration}</span>
-                        {skillList.slice(0, 3).map((s, si) => (
-                          <span key={si} style={{
-                            fontSize: "0.65rem", background: "rgba(99,102,241,0.12)", color: "#a5b4fc",
-                            border: "1px solid rgba(99,102,241,0.2)", padding: "0.1rem 0.4rem", borderRadius: "4px", fontWeight: 600,
-                          }}>
-                            {s.trim()}
-                          </span>
-                        ))}
-                        {skillList.length > 3 && (
-                          <span style={{ fontSize: "0.65rem", color: "rgba(130,140,200,0.5)" }}>+{skillList.length - 3}</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
         </div>
-      </div>
 
       {/* ── RIGHT AUTH PANEL ───────────────────────────── */}
       <div className="auth-content">
@@ -357,11 +282,7 @@ export default function Home() {
               <div className="form-group">
                 <label className="form-label" htmlFor="email-address">Email Address</label>
                 <div style={{ position: "relative" }}>
-                  <svg style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "rgba(160,160,200,0.4)", pointerEvents: "none" }}
-                    width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                  </svg>
+                  <Mail size={16} style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "rgba(160,160,200,0.4)", pointerEvents: "none" }} />
                   <input id="email-address" name="email" type="email" required className="form-input"
                     style={{ paddingLeft: "2.5rem" }}
                     placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -371,11 +292,7 @@ export default function Home() {
               <div className="form-group" style={{ marginBottom: "1.5rem" }}>
                 <label className="form-label" htmlFor="password">Password</label>
                 <div style={{ position: "relative" }}>
-                  <svg style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "rgba(160,160,200,0.4)", pointerEvents: "none" }}
-                    width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
+                  <Lock size={16} style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", color: "rgba(160,160,200,0.4)", pointerEvents: "none" }} />
                   <input id="password" name="password" type="password" required className="form-input"
                     style={{ paddingLeft: "2.5rem" }}
                     placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -422,6 +339,72 @@ export default function Home() {
                 {isLogin ? "Sign up free" : "Sign in"}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── BELOW SECTION: ALL OPPORTUNITIES ───────────────────────────── */}
+      <div style={{ width: "100%", padding: "4rem 3rem", background: "linear-gradient(to bottom, #0a0a10, #000)", position: "relative", zIndex: 1, borderTop: "1px solid rgba(99,102,241,0.15)" }}>
+        <div style={{ maxWidth: "1440px", margin: "0 auto" }}>
+          {/* Live opportunities heading */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "2rem" }}>
+            <span style={{ position: "relative", display: "inline-flex", width: "12px", height: "12px" }}>
+              <span className="opp-ping" style={{ width: "12px", height: "12px" }} />
+              <span style={{ position: "relative", display: "inline-flex", borderRadius: "50%", width: "12px", height: "12px", background: "#22c55e" }} />
+            </span>
+            <span style={{ fontWeight: 800, fontSize: "1.2rem", letterSpacing: "1px", textTransform: "uppercase", color: "rgba(200,210,255,0.9)" }}>
+              Live Internships — {opportunities.length} Open Now
+            </span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1.5rem" }}>
+            {opportunities.length === 0 ? (
+              <div style={{ color: "rgba(160,160,200,0.5)", fontSize: "1rem", paddingTop: "1.5rem" }}>
+                Loading opportunities…
+              </div>
+            ) : (
+              opportunities.map((opp, i) => {
+                const lc = locationStyle(opp.location);
+                const skillList = opp.skills.split(",");
+                return (
+                  <div key={i} className="opp-card" style={{ padding: "1.25rem", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#e0e7ff", lineHeight: 1.3, marginBottom: "0.2rem" }}>{opp.title}</div>
+                        <div style={{ fontSize: "0.85rem", color: "rgba(160,170,240,0.7)", fontWeight: 500 }}>{opp.company}</div>
+                      </div>
+                      <span style={{
+                        fontSize: "0.7rem", fontWeight: 700, padding: "0.25rem 0.65rem",
+                        borderRadius: "50px", background: lc.bg, color: lc.color,
+                        border: `1px solid ${lc.border}`, whiteSpace: "nowrap", flexShrink: 0,
+                      }}>
+                        {opp.location.split(" - ")[0]}
+                      </span>
+                    </div>
+                    
+                    {/* Description excerpt */}
+                    <div style={{ fontSize: "0.85rem", color: "rgba(200,210,255,0.6)", marginBottom: "1rem", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {opp.description}
+                    </div>
+
+                    <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
+                      <span style={{ fontSize: "0.75rem", color: "rgba(130,140,200,0.6)", marginRight: "0.5rem" }}>⏱ {opp.duration}</span>
+                      {skillList.slice(0, 4).map((s, si) => (
+                        <span key={si} style={{
+                          fontSize: "0.7rem", background: "rgba(99,102,241,0.12)", color: "#a5b4fc",
+                          border: "1px solid rgba(99,102,241,0.2)", padding: "0.15rem 0.5rem", borderRadius: "6px", fontWeight: 600,
+                        }}>
+                          {s.trim()}
+                        </span>
+                      ))}
+                      {skillList.length > 4 && (
+                        <span style={{ fontSize: "0.7rem", color: "rgba(130,140,200,0.5)" }}>+{skillList.length - 4}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

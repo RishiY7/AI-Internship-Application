@@ -1,7 +1,6 @@
-"use client";
-
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Hexagon, LayoutDashboard, Briefcase, User, Settings, MessageSquare, LogOut } from "lucide-react";
 
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);
@@ -90,7 +89,27 @@ export default function Dashboard() {
   const fetchMatches = async () => {
     try {
       const res = await fetch(`http://localhost:8000/api/matches/${userId}?requesting_user_id=${userId}`);
-      if (res.ok) setMatches(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setMatches(data);
+        
+        // Auto-fill profile from extracted resume data if fields are empty
+        if (data && data.candidate) {
+          const c = data.candidate;
+          setProfile(prev => {
+            let updated = false;
+            const next = { ...prev };
+            if (c.name && !next.fullName) { next.fullName = c.name; updated = true; }
+            if (c.phone && !next.phone) { next.phone = c.phone; updated = true; }
+            if (c.university && !next.university) { next.university = c.university; updated = true; }
+            
+            if (updated && userId) {
+              localStorage.setItem("profile_" + userId, JSON.stringify(next));
+            }
+            return updated ? next : prev;
+          });
+        }
+      }
     } catch { console.log("Failed to fetch matches"); }
   };
 
@@ -326,49 +345,34 @@ export default function Dashboard() {
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
             boxShadow: "0 4px 12px rgba(99,102,241,0.4)",
           }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
-            </svg>
+            <Hexagon size={16} color="white" strokeWidth={2.5} />
           </div>
           InternMatch
         </div>
         <nav className="sidebar-nav">
           <button className={"nav-item " + (activeTab === "dashboard" ? "active" : "")} onClick={() => setActiveTab("dashboard")}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
-            </svg>
+            <LayoutDashboard size={20} strokeWidth={2} />
             Dashboard
           </button>
           <button className={"nav-item " + (activeTab === "opportunities" ? "active" : "")} onClick={() => setActiveTab("opportunities")}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-            </svg>
+            <Briefcase size={20} strokeWidth={2} />
             Opportunities
           </button>
           <button className={"nav-item " + (activeTab === "profile" ? "active" : "")} onClick={() => setActiveTab("profile")}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-            </svg>
+            <User size={20} strokeWidth={2} />
             My Profile
           </button>
           <button className={"nav-item " + (activeTab === "settings" ? "active" : "")} onClick={() => setActiveTab("settings")}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
+            <Settings size={20} strokeWidth={2} />
             Settings
           </button>
           <button className={"nav-item " + (activeTab === "chat" ? "active" : "")} onClick={() => { setActiveTab("chat"); fetchChatSessions(); }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
+            <MessageSquare size={20} strokeWidth={2} />
             Product Assistant
           </button>
           <div style={{ flex: 1 }} />
           <button className="nav-item" style={{ color: "#ef4444" }} onClick={() => { localStorage.removeItem("user_id"); router.push("/"); }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+            <LogOut size={20} strokeWidth={2} />
             Logout
           </button>
         </nav>
@@ -1019,7 +1023,7 @@ export default function Dashboard() {
                       <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.85rem 1rem", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: r.is_active ? "var(--primary-light)" : "white" }}>
                         <div>
                           <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{r.filename}</span>
-                          <span style={{ marginLeft: "0.75rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>{new Date(r.uploaded_at).toLocaleDateString()}</span>
+                          <span style={{ marginLeft: "0.75rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>{new Date(r.created_at).toLocaleDateString()}</span>
                           {r.is_active && <span style={{ marginLeft: "0.6rem", background: "#059669", color: "white", fontSize: "0.7rem", padding: "0.1rem 0.45rem", borderRadius: "50px" }}>Active</span>}
                         </div>
                         {!r.is_active && (

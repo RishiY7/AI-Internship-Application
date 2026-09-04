@@ -344,13 +344,15 @@ body {
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(139,92,246,0.1) 100%);
+  background: linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.05) 100%);
   color: #a5b4fc;
   font-weight: 600;
   border: 1px solid rgba(99,102,241,0.25);
+  border-left: 3px solid #818cf8;
+  box-shadow: inset 2px 0 10px rgba(129,140,248,0.15);
 }
 
-.nav-item.active svg { color: #818cf8; }
+.nav-item.active svg { color: #818cf8; filter: drop-shadow(0 0 6px rgba(129,140,248,0.6)); }
 
 /* Main Area */
 .portal-main {
@@ -468,8 +470,9 @@ body {
 }
 
 .card:hover {
-  border-color: var(--border-bright);
-  box-shadow: var(--shadow-md);
+  border-color: rgba(99,102,241,0.4);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3), 0 0 0 1px rgba(99,102,241,0.15);
+  transform: translateY(-2px);
 }
 
 .card-title {

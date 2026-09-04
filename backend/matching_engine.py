@@ -105,11 +105,14 @@ class InternshipMatcher:
 
     def generate_candidate_summary(self, candidate) -> str:
         """
-        Full candidate summary including name â€” used in LLM prompts only (not embeddings).
+        Full candidate summary including name, email, phone, and university — used in LLM prompts only (not embeddings).
         """
         skills_str = ", ".join(candidate.get("skills", []))
         return (
             f"Name: {candidate.get('name', 'Unknown')}\n"
+            f"Email: {candidate.get('email', 'N/A')}\n"
+            f"Phone: {candidate.get('phone', 'N/A')}\n"
+            f"University: {candidate.get('university', 'N/A')}\n"
             f"Skills: {skills_str}\n"
             f"Education: {candidate.get('education', 'N/A')}\n"
             f"Experience: {candidate.get('experience', 'N/A')}\n"

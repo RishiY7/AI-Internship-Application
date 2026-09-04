@@ -1,9 +1,9 @@
 """
 doc_indexer.py
-Phase 2.1 — Loads product_knowledge.md, chunks it, generates embeddings,
+Phase 2.1 — Loads product_knowledge.pdf, chunks it, generates embeddings,
 and saves a FAISS index to backend/vector_store/product_faiss_index/.
 
-Run once (or whenever product_knowledge.md is updated):
+Run once (or whenever product_knowledge.pdf is updated):
     python backend/chatbot/doc_indexer.py
 """
 
@@ -20,13 +20,13 @@ sys.path.append(BACKEND_DIR)
 from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_DIR, ".env"))
 
-from langchain_community.document_loaders import TextLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
 # --- Paths ---
-DOC_PATH   = os.path.join(CHATBOT_DIR, "product_knowledge.md")
+DOC_PATH   = os.path.join(CHATBOT_DIR, "product_knowledge.pdf")
 INDEX_PATH = os.path.join(BACKEND_DIR, "vector_store", "product_faiss_index")
 
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
@@ -36,14 +36,14 @@ CHUNK_OVERLAP   = 50
 
 def build_index():
     print("=" * 60)
-    print("InternMatch AI — Product Knowledge Indexer")
+    print("InternMatch AI — Product Knowledge Indexer (PDF Edition)")
     print("=" * 60)
 
     # Step 1: Load the document
     print(f"\n[1/5] Loading document: {DOC_PATH}")
     if not os.path.exists(DOC_PATH):
-        raise FileNotFoundError(f"product_knowledge.md not found at: {DOC_PATH}")
-    loader = TextLoader(DOC_PATH, encoding="utf-8")
+        raise FileNotFoundError(f"product_knowledge.pdf not found at: {DOC_PATH}")
+    loader = PyMuPDFLoader(DOC_PATH)
     docs = loader.load()
     print(f"      Loaded {len(docs)} document(s), total chars: {sum(len(d.page_content) for d in docs)}")
 

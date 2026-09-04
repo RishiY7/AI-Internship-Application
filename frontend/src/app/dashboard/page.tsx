@@ -1099,19 +1099,6 @@ export default function Dashboard() {
                             }}>
                               {msg.content}
                             </div>
-                            {/* Source citations */}
-                            {msg.role === "assistant" && msg.source_chunks && msg.source_chunks.length > 0 && (
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
-                                {msg.source_chunks.map((c: any, ci: number) => (
-                                  <span key={ci} style={{
-                                    fontSize: "0.7rem", padding: "0.15rem 0.5rem", borderRadius: "99px",
-                                    background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.2)",
-                                  }}>
-                                    📄 Source {ci + 1}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
                           </div>
                         </div>
                       ))}

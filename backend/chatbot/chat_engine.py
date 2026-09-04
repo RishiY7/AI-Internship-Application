@@ -1,4 +1,4 @@
-﻿"""
+"""
 chat_engine.py
 Phase 2.2 — ProductChatbot class.
 Implements the full §6 memory flow:
@@ -38,8 +38,9 @@ TOP_K_CHUNKS     = 3     # number of RAG doc chunks to retrieve
 SYSTEM_PROMPT = (
     "You are a helpful Product Assistant for InternMatch AI — an AI-powered internship matching platform. "
     "Answer questions ONLY using the provided product documentation context and conversation history. "
-    "If the answer is not in the context, say you do not have that information. "
-    "Be concise, friendly, and accurate."
+    "If the answer is not covered in the context, respond with something like: "
+    "\"That's outside what I can help with here — I'm only able to answer questions about InternMatch AI and its features.\" "
+    "Be concise, friendly, and accurate. Never make up information."
 )
 
 

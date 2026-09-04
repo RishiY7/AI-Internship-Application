@@ -20,6 +20,7 @@ export default function Home() {
   const [phone, setPhone] = useState("");
   const [university, setUniversity] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const router = useRouter();
@@ -34,6 +35,7 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
     setLoading(true);
 
     const endpoint = isLogin ? "/api/login" : "/api/register";
@@ -55,6 +57,21 @@ export default function Home() {
         return;
       }
 
+      if (!isLogin) {
+        // Registration successful — switch to login, do NOT auto-login
+        if (fullName) localStorage.setItem("user_full_name", fullName);
+        setIsLogin(true);
+        setEmail("");
+        setPassword("");
+        setFullName("");
+        setPhone("");
+        setUniversity("");
+        setSuccess("Account created! Please sign in.");
+        setLoading(false);
+        return;
+      }
+
+      // Login successful — store and navigate
       localStorage.setItem("user_id", data.user_id);
       router.push("/dashboard");
     } catch {
@@ -304,6 +321,15 @@ export default function Home() {
 
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0" }}>
               {error && <div className="error-box">{error}</div>}
+              {success && (
+                <div style={{
+                  background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.3)",
+                  color: "#34d399", borderRadius: "8px", padding: "0.65rem 1rem",
+                  fontSize: "0.85rem", fontWeight: 600, marginBottom: "1rem",
+                }}>
+                  ✓ {success}
+                </div>
+              )}
 
               {/* Register-only fields */}
               {!isLogin && (
@@ -362,7 +388,8 @@ export default function Home() {
                 style={{
                   width: "100%", padding: "0.85rem", fontSize: "0.95rem", fontWeight: 700,
                   borderRadius: "10px", border: "none", cursor: loading ? "not-allowed" : "pointer",
-                  background: loading ? "rgba(99,102,241,0.4)" : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 60%, #06b6d4 100%)",
+                  backgroundImage: loading ? "none" : "linear-gradient(135deg, #6366f1 0%, #8b5cf6 60%, #06b6d4 100%)",
+                  backgroundColor: loading ? "rgba(99,102,241,0.4)" : "transparent",
                   backgroundSize: "200% 200%",
                   color: "white", transition: "all 0.3s",
                   boxShadow: loading ? "none" : "0 8px 24px rgba(99,102,241,0.35)",

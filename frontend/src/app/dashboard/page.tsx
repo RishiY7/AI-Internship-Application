@@ -45,8 +45,16 @@ export default function Dashboard() {
     fetchResumes();
     fetchOpportunities();
     fetchChatSessions();
+    // Load saved profile, merging in the stored full_name from signup
     const saved = localStorage.getItem("profile_" + userId);
-    if (saved) setProfile(JSON.parse(saved));
+    const storedName = localStorage.getItem("user_full_name");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (!parsed.fullName && storedName) parsed.fullName = storedName;
+      setProfile(parsed);
+    } else if (storedName) {
+      setProfile(prev => ({ ...prev, fullName: storedName }));
+    }
   }, [userId, router]);
 
   // Auto-scroll chat to bottom on new messages
@@ -66,7 +74,7 @@ export default function Dashboard() {
 
   const fetchMatches = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/matches/" + userId);
+      const res = await fetch(`http://localhost:8000/api/matches/${userId}?requesting_user_id=${userId}`);
       if (res.ok) setMatches(await res.json());
     } catch { console.log("Failed to fetch matches"); }
   };
@@ -360,7 +368,7 @@ export default function Dashboard() {
             {activeTab === "settings" && "Settings"}
             {activeTab === "chat" && "💬 Product Assistant"}
           </div>
-          <div className="header-profile">
+          <div className="header-profile" onClick={() => setActiveTab("profile")} style={{ cursor: "pointer" }} title="View My Profile">
             <div className="avatar">{displayName.charAt(0).toUpperCase()}</div>
             <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--text-main)" }}>{displayName}</span>
           </div>

@@ -2,6 +2,7 @@
 
 An AI-powered full-stack web app for internship matching and interview preparation. Upload your resume → get matched to internships → prepare for interviews with a personalised AI coach.
 
+![AI Career Companion Agent](Landing%20Page.png)
 ---
 
 ## Features
@@ -219,4 +220,3 @@ cd frontend && npm run dev
 - **PostgreSQL** — default connection is `localhost:5432/internship_db`; configure via `DATABASE_URL` in `.env` for a remote instance
 - **Groq model** — `groq/compound-mini` pinned in `config.py`; update there if a preferred model is available
 
-![AI Career Companion Agent](landing%20page.png)

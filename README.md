@@ -218,3 +218,5 @@ cd frontend && npm run dev
 - **No JWT auth** — `user_id` stored in `localStorage`; production would use JWT or HTTP-only cookies
 - **PostgreSQL** — default connection is `localhost:5432/internship_db`; configure via `DATABASE_URL` in `.env` for a remote instance
 - **Groq model** — `groq/compound-mini` pinned in `config.py`; update there if a preferred model is available
+
+![AI Career Companion Agent](landing%20page.png)

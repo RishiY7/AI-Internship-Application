@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Hexagon, LayoutDashboard, Briefcase, User, Settings, MessageSquare, LogOut, BrainCircuit, CheckCircle2 } from "lucide-react";

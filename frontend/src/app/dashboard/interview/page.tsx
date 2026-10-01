@@ -197,7 +197,7 @@ export default function InterviewPage() {
       });
   }
 
-  const displayName = localStorage.getItem("user_full_name") || "User";
+  const displayName = typeof window !== "undefined" ? localStorage.getItem("user_full_name") || "User" : "User";
 
   // ------------------------------------------------------------------ //
   // Render                                                               //
@@ -669,7 +669,7 @@ export default function InterviewPage() {
                 { icon: "🎯", text: "Ask which roles match your resume" },
                 { icon: "❓", text: "Request technical & HR questions" },
                 { icon: "🗺️", text: "Get a preparation roadmap" },
-                { icon: "📄", text: "Upload a JD and ask "Am I a fit?"" },
+                { icon: "📄", text: 'Upload a JD and ask "Am I a fit?"' },
               ].map((tip, i) => (
                 <div key={i} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.6rem", fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.45 }}>
                   <span style={{ flexShrink: 0 }}>{tip.icon}</span>
